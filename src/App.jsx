@@ -1409,7 +1409,7 @@ function ReportsPage({data}){
           <Field label="Fecha hasta">
             <input type="date" value={dateTo} onChange={e=>setDateTo(e.target.value)} style={S.input}/>
           </Field>
-          <div style={{display:"flex",gap:8"}}>
+          <div style={{display:"flex",gap:8}}>
             <Btn variant="secondary" onClick={()=>{setDateFrom("");setDateTo("");}}>Limpiar</Btn>
             <Btn variant="success" onClick={handleExportFiltered}><Download size={14}/>Exportar Excel</Btn>
           </div>
