@@ -33,8 +33,17 @@ const PROV_CATS = ["Aerolínea","Hotel","Agencia receptiva","Seguro","Crucero","
 const CURRENCIES = ["ARS","USD","EUR"];
 const REGIMENES = ["Solo habitación","BB - Bed & Breakfast","HB - Media Pensión","FB - Pensión Completa","AI - Todo Incluido"];
 
-// ── STORAGE ──────────────────────────────────────
-const SK = "travelmanager_v5";
+// ── FIREBASE CONFIG ───────────────────────────────
+const FB_CONFIG = {
+  apiKey: "AIzaSyCNOXMel7aiTJCXK9nbX2Q8aKUf_o96WE8",
+  authDomain: "travel-manager-b413f.firebaseapp.com",
+  databaseURL: "https://travel-manager-b413f-default-rtdb.firebaseio.com",
+  projectId: "travel-manager-b413f",
+  storageBucket: "travel-manager-b413f.firebasestorage.app",
+  messagingSenderId: "678056777556",
+  appId: "1:678056777556:web:fc0f052c34860950cb5ac1"
+};
+
 const DEFAULT_DOC_CONFIG = {
   recibo:{showServiceDetail:false,showProviders:false,showProviderRef:false,showServicePrices:false,showPaymentHistory:true,showTotals:true},
   voucherAereo:{showPassengerDNI:true,showFlightNumbers:true,showBaggageInfo:true,showProviderRef:true},
@@ -44,8 +53,41 @@ const INIT = {
   settings:{agencyName:"Mi Agencia de Viajes",address:"",phone:"",email:"",cuit:"",emergencyPhone:"",logo:null,defaultCommission:15,currency:"ARS",voucherColor:"#1a56db",receiptColor:"#1a56db",footerText:"Gracias por elegirnos.",headerNote:"",docConfig:DEFAULT_DOC_CONFIG},
   clients:[],providers:[],reservations:[],nextFile:1
 };
-async function loadDB(){try{const r=await window.storage.get(SK);return r?JSON.parse(r.value):INIT;}catch{return INIT;}}
-async function saveDB(d){try{await window.storage.set(SK,JSON.stringify(d));}catch{}}
+
+// Firebase REST API helpers
+const FB_URL = FB_CONFIG.databaseURL;
+async function loadDB(){
+  try{
+    const r = await fetch(`${FB_URL}/travelmanager.json`);
+    const data = await r.json();
+    if(!data) return INIT;
+    // Convertir arrays almacenados como objetos de Firebase
+    return {
+      ...INIT,
+      ...data,
+      clients: data.clients ? Object.values(data.clients) : [],
+      providers: data.providers ? Object.values(data.providers) : [],
+      reservations: data.reservations ? Object.values(data.reservations) : [],
+    };
+  } catch(e){ console.error("Firebase load error:",e); return INIT; }
+}
+async function saveDB(d){
+  try{
+    // Convertir arrays a objetos con ID como clave para Firebase
+    const toObj = arr => arr.reduce((acc,item)=>{acc[item.id]=item;return acc;},{});
+    const payload = {
+      ...d,
+      clients: toObj(d.clients||[]),
+      providers: toObj(d.providers||[]),
+      reservations: toObj(d.reservations||[]),
+    };
+    await fetch(`${FB_URL}/travelmanager.json`,{
+      method:"PUT",
+      headers:{"Content-Type":"application/json"},
+      body: JSON.stringify(payload)
+    });
+  } catch(e){ console.error("Firebase save error:",e); }
+}
 
 // ── EXCEL ─────────────────────────────────────────
 function buildCSV(rows,headers){const esc=v=>`"${String(v??'').replace(/"/g,'""')}"`;return[headers.map(esc).join(','),...rows.map(r=>r.map(esc).join(','))].join('\n');}
