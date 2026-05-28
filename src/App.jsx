@@ -427,10 +427,12 @@ function VoucherReader({svcId, svcType, providers, onApply}){
     const t = text;
     const find = patterns => { for(const p of patterns){const m=t.match(p);if(m)return m[1]?.trim();} return ""; };
 
-    // Detectar tipo
-    const isVuelo = /vuelo|flight|aerol[ií]nea|airline|itinerario|boarding|IATA/i.test(t);
-    const isHotel = /hotel|check.in|check.out|habitaci[oó]n|room|noche|alojamiento|r[eé]gimen/i.test(t);
-    const isTraslado = /traslado|transfer|pickup|recogida|shuttle/i.test(t);
+    // Detectar tipo — vuelo tiene prioridad si hay número de vuelo o código IATA
+    const hasFlightNum = /\b[A-Z]{2}\s*\d{3,4}\b/.test(t);
+    const hasIATA = iataAll.filter(c=>knownIATA.has(c)).length >= 1;
+    const isVuelo = hasFlightNum || hasIATA || /itinerario de vuelo|flight|boarding|e-ticket/i.test(t);
+    const isHotel = !isVuelo && /hotel|check.in|check.out|habitaci[oó]n|room|noche|alojamiento|r[eé]gimen/i.test(t);
+    const isTraslado = !isVuelo && !isHotel && /traslado|transfer|pickup|recogida|shuttle/i.test(t);
     const type = isVuelo?"vuelo":isHotel?"hotel":isTraslado?"traslado":"otro";
 
     // Extraer todos los códigos IATA (3 letras mayúsculas) del texto
@@ -468,7 +470,7 @@ function VoucherReader({svcId, svcType, providers, onApply}){
     const parsed = {
       type,
       providerName: find([/hotel[:\s]+([^\n]+)/i, /\b(IBERIA|LATAM|AEROL[IÍ]NEAS ARGENTINAS|AMERICAN AIRLINES|UNITED|DELTA|LUFTHANSA|AIR FRANCE|BRITISH AIRWAYS|EMIRATES|FLYBONDI|JETSMART)\b/i, /aerol[ií]nea[:\s]+([^\n]+)/i]),
-      providerRef: find([/c[oó]digo de reserva[:\s]*([\w]{5,8})/i, /c[oó]digo de reserva de la aerol[ií]nea[:\s]*([\w]{5,8})/i, /localizador[:\s]*([\w]+)/i, /referencia[:\s]*([\w]+)/i, /booking[:\s#]*([\w]+)/i, /\b([A-Z]{6})\b/]),
+      providerRef: find([/c[oó]digo de reserva[:\s]*([\w]{5,8})/i, /c[oó]digo de reserva de la aerol[ií]nea[:\s]*([\w]{5,8})/i, /localizador[:\s]*([\w]{5,8})/i, /referencia[:\s]*([\w]{5,8})/i, /booking[:\s#]*([\w]{5,8})/i, /\b([A-Z]{6})\b(?!\s*\n.*(?:aerol|airline))/]),
       providerPhone: find([/tel[eé]fono[:\s]+([+\d\s()-]+)/i, /phone[:\s]+([+\d\s()-]+)/i]),
       providerAddress: find([/direcci[oó]n[:\s]+([^\n]+)/i, /address[:\s]+([^\n]+)/i]),
       description: "",
@@ -526,35 +528,34 @@ function VoucherReader({svcId, svcType, providers, onApply}){
     };
     const regMap={"bb":"BB - Bed & Breakfast","hb":"HB - Media Pensión","fb":"FB - Pensión Completa","ai":"AI - Todo Incluido","todo incluido":"AI - Todo Incluido","bed and breakfast":"BB - Bed & Breakfast","solo":"Solo habitación"};
     const rk=result.regimen?Object.keys(regMap).find(k=>result.regimen.toLowerCase().includes(k)):null;
-    const merged = {
-      type: result.type||svcType,
-      providerFileNumber: result.providerRef||"",
-      flightNumber: result.flightNumber||"",
-      airline: result.airline||"",
-      origin: result.origin||"",
-      originCode: result.originCode||"",
-      destination: result.destination||"",
-      destinationCode: result.destinationCode||"",
-      departureDate: pd(result.departureDate),
-      departureTime: result.departureTime||"",
-      arrivalDate: pd(result.arrivalDate),
-      arrivalTime: result.arrivalTime||"",
-      flightClass: result.flightClass||"",
-      baggage: result.baggage||"",
-      checkIn: pd(result.checkIn),
-      checkOut: pd(result.checkOut),
-      nights: result.nights||"",
-      rooms: result.rooms||"",
-      roomType: result.roomType||"",
-      regimen: rk?regMap[rk]:(result.regimen||""),
-      serviceDate: pd(result.serviceDate||result.departureDate),
-      serviceTime: result.serviceTime||result.departureTime||"",
-      _extractedProviderName: result.providerName||"",
-      _extractedProviderPhone: result.providerPhone||"",
-      _extractedProviderAddress: result.providerAddress||"",
-    };
-    // Eliminar campos vacíos para no pisar datos existentes
-    Object.keys(merged).forEach(k=>{ if(merged[k]==="")delete merged[k]; });
+    const merged = {};
+    const set = (k,v) => { if(v!==undefined&&v!==null&&v!=="") merged[k]=v; };
+    // Solo cambiar tipo si era "otro" o si detectamos con certeza
+    if(result.type && result.type!=="otro") set("type", result.type);
+    set("providerFileNumber", result.providerRef);
+    set("flightNumber", result.flightNumber);
+    set("airline", result.airline);
+    set("origin", result.origin);
+    set("originCode", result.originCode);
+    set("destination", result.destination);
+    set("destinationCode", result.destinationCode);
+    set("departureDate", pd(result.departureDate));
+    set("departureTime", result.departureTime);
+    set("arrivalDate", pd(result.arrivalDate));
+    set("arrivalTime", result.arrivalTime);
+    set("flightClass", result.flightClass);
+    set("baggage", result.baggage);
+    set("checkIn", pd(result.checkIn));
+    set("checkOut", pd(result.checkOut));
+    set("nights", result.nights);
+    set("rooms", result.rooms);
+    set("roomType", result.roomType);
+    if(rk) set("regimen", regMap[rk]); else if(result.regimen) set("regimen", result.regimen);
+    set("serviceDate", pd(result.serviceDate||result.departureDate));
+    set("serviceTime", result.serviceTime||result.departureTime);
+    set("_extractedProviderName", result.providerName);
+    set("_extractedProviderPhone", result.providerPhone);
+    set("_extractedProviderAddress", result.providerAddress);
     onApply(merged);
     setResult(null);
     setOpen(false);
