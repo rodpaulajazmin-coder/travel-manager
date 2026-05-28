@@ -433,7 +433,9 @@ function VoucherReader({onApply}){
       airline: g([/\b(IBERIA|LATAM|AEROL[IÍ]NEAS ARGENTINAS|AMERICAN AIRLINES|UNITED|DELTA|LUFTHANSA|AIR FRANCE|BRITISH AIRWAYS|EMIRATES|FLYBONDI|JETSMART|RYANAIR|VUELING)\b/i]),
       providerFileNumber: g([/c[oó]digo de reserva[:\s]*(\w{5,8})/i, /c[oó]digo de reserva de la aerol[ií]nea[:\s]*(\w{5,8})/i, /localizador[:\s]*(\w{5,8})/i]),
       originCode: allIATA[0]||"",
+      origin: iataToCity[allIATA[0]]||"",
       destinationCode: allIATA[1]||"",
+      destination: iataToCity[allIATA[1]]||"",
       departureDate: pd(allDates[0]),
       departureTime: allTimes[0]||"",
       arrivalDate: pd(allDates[1]||allDates[0]),
@@ -499,7 +501,15 @@ function ServiceFields({s,arrUpd}){
       <Field label="Clase"><select value={s.flightClass||""} onChange={e=>up("flightClass",e.target.value)} style={{...S.input,appearance:"auto"}}><option value="">—</option><option>Económica</option><option>Premium Economy</option><option>Business</option><option>Primera clase</option></select></Field>
       <Inp label="Terminal" value={s.terminal} onChange={v=>up("terminal",v)} placeholder="Terminal A"/>
     </div>
-    <Inp label="Equipaje incluido" value={s.baggage} onChange={v=>up("baggage",v)} placeholder="1 pieza 23kg + equipaje de mano"/>
+    <Field label="Equipaje incluido">
+      <select value={s.baggage||""} onChange={e=>up("baggage",e.target.value)} style={{...S.input,appearance:"auto"}}>
+        <option value="">-- Sin especificar --</option>
+        <option value="Solo articulo personal">Solo articulo personal</option>
+        <option value="Articulo personal + equipaje de mano">Articulo personal + equipaje de mano</option>
+        <option value="1 pieza 23kg + equipaje de mano">1 pieza 23kg + equipaje de mano</option>
+        <option value="2 piezas 23kg + equipaje de mano">2 piezas 23kg + equipaje de mano</option>
+      </select>
+    </Field>
   </div>);
   if(s.type==="hotel") return(<div>
     <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr 1fr",gap:10,marginBottom:10}}>
