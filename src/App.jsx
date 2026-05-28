@@ -407,206 +407,70 @@ const newPay=()=>({id:genId(),date:today(),amount:0,method:"Transferencia",notes
 const newDue=()=>({id:genId(),dueDate:"",amount:0,paid:false,paidDate:null,notes:""});
 
 // ── VOUCHER READER (pegar texto) ─────────────────
-function VoucherReader({svcId, svcType, providers, onApply}){
+function VoucherReader({onApply}){
   const [open, setOpen] = useState(false);
   const [text, setText] = useState("");
-  const [result, setResult] = useState(null);
 
-  const parseDate = str => {
-    if(!str) return "";
-    const m1 = str.match(/(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})/);
-    if(m1){const y=m1[3].length===2?"20"+m1[3]:m1[3];return `${y}-${m1[2].padStart(2,"0")}-${m1[1].padStart(2,"0")}`;}
-    const months={enero:"01",febrero:"02",marzo:"03",abril:"04",mayo:"05",junio:"06",julio:"07",agosto:"08",septiembre:"09",octubre:"10",noviembre:"11",diciembre:"12"};
-    const m2=str.toLowerCase().match(/(\d{1,2})\s+de\s+(\w+)\s+de\s+(\d{4})/);
-    if(m2&&months[m2[2]])return `${m2[3]}-${months[m2[2]]}-${m2[1].padStart(2,"0")}`;
-    return "";
-  };
-
-  const parse = () => {
-    if(!text.trim()) return;
+  const extract = () => {
     const t = text;
-    const find = patterns => { for(const p of patterns){const m=t.match(p);if(m)return m[1]?.trim();} return ""; };
-
-    // Detectar tipo — vuelo tiene prioridad si hay número de vuelo o código IATA
-    const hasFlightNum = /\b[A-Z]{2}\s*\d{3,4}\b/.test(t);
-    const hasIATA = iataAll.filter(c=>knownIATA.has(c)).length >= 1;
-    const isVuelo = hasFlightNum || hasIATA || /itinerario de vuelo|flight|boarding|e-ticket/i.test(t);
-    const isHotel = !isVuelo && /hotel|check.in|check.out|habitaci[oó]n|room|noche|alojamiento|r[eé]gimen/i.test(t);
-    const isTraslado = !isVuelo && !isHotel && /traslado|transfer|pickup|recogida|shuttle/i.test(t);
-    const type = isVuelo?"vuelo":isHotel?"hotel":isTraslado?"traslado":"otro";
-
-    // Extraer todos los códigos IATA (3 letras mayúsculas) del texto
-    const iataAll = [...t.matchAll(/\b([A-Z]{3})\b/g)].map(m=>m[1]);
-    // Filtrar solo los que son aeropuertos conocidos o aparecen en contexto de vuelo
-    const knownIATA = new Set(["EZE","AEP","COR","MDZ","BRC","IGR","NQN","SDE","TUC","USH","GRU","CGH","BSB","SSA","REC","FOR","MAO","POA","CUN","MEX","GDL","BOG","MDE","CLO","SCL","PMC","LIM","CUZ","BOG","UIO","GYE","MVD","ASU","VVI","LPB","MIA","JFK","LAX","ORD","ATL","DFW","SFO","BOS","DEN","SEA","LHR","LGW","CDG","ORY","AMS","FRA","MUC","FCO","CIA","BCN","MAD","LIS","ZRH","VIE","BRU","CPH","ARN","OSL","HEL","DUB","GVA","MXP","MAN","BHX","EDI","NCE","MRS","TLS","BOD","NTE","LYS","JMK","ATH","HER","RHO","SKG","MLA","PMI","IBZ","ACE","TFS","LPA","FUE","AGP","ALC","VLC","BIO","SVQ"]);
-    const iataInContext = iataAll.filter(c => knownIATA.has(c) || (c.length===3 && /^[A-Z]{3}$/.test(c)));
-
-    // Detectar par origen-destino: buscar patrón "JMK ... MAD" o "JMK - MAD"
-    const iataPair = t.match(/\b([A-Z]{3})\b[\s\S]{0,50}?\b([A-Z]{3})\b/);
-    let originCode = "", destinationCode = "";
-    if(iataAll.length >= 2){
-      // Tomar los primeros dos IATA únicos encontrados
-      const uniq = [...new Set(iataAll.filter(c=>c!=="IB"&&c!=="hs"&&c.length===3))];
-      if(uniq.length>=2){ originCode=uniq[0]; destinationCode=uniq[1]; }
-      else if(uniq.length===1){ originCode=uniq[0]; }
-    }
-
-    // Detectar fechas — buscar DD/MM/YYYY o "25/07/2026"
-    const allDates = [...t.matchAll(/(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4})/g)].map(m=>m[1]);
-    const depDate = allDates[0]||"";
-    const arrDate = allDates[1]||allDates[0]||"";
-
-    // Detectar horarios HH:MM
-    const allTimes = [...t.matchAll(/(\d{1,2}:\d{2})(?:\s*hs)?/g)].map(m=>m[1]);
-    const depTime = allTimes[0]||"";
-    const arrTime = allTimes[1]||"";
-
-    // Detectar nombres de ciudades junto a códigos IATA
-    const cityFromIATA = code => {
-      const cityMap = {EZE:"Buenos Aires",AEP:"Buenos Aires",GRU:"São Paulo",JMK:"Mykonos",ATH:"Atenas",MAD:"Madrid",MIA:"Miami",JFK:"Nueva York",LAX:"Los Ángeles",LHR:"Londres",CDG:"París",FCO:"Roma",BCN:"Barcelona",CUN:"Cancún",SCL:"Santiago",LIM:"Lima",BOG:"Bogotá",GIG:"Río de Janeiro",PMI:"Palma",LIS:"Lisboa",AMS:"Ámsterdam",FRA:"Frankfurt",ZRH:"Zúrich"};
-      return cityMap[code]||code;
-    };
-
-    const parsed = {
-      type,
-      providerName: find([/hotel[:\s]+([^\n]+)/i, /\b(IBERIA|LATAM|AEROL[IÍ]NEAS ARGENTINAS|AMERICAN AIRLINES|UNITED|DELTA|LUFTHANSA|AIR FRANCE|BRITISH AIRWAYS|EMIRATES|FLYBONDI|JETSMART)\b/i, /aerol[ií]nea[:\s]+([^\n]+)/i]),
-      providerRef: find([/c[oó]digo de reserva[:\s]*([\w]{5,8})/i, /c[oó]digo de reserva de la aerol[ií]nea[:\s]*([\w]{5,8})/i, /localizador[:\s]*([\w]{5,8})/i, /referencia[:\s]*([\w]{5,8})/i, /booking[:\s#]*([\w]{5,8})/i, /\b([A-Z]{6})\b(?!\s*\n.*(?:aerol|airline))/]),
-      providerPhone: find([/tel[eé]fono[:\s]+([+\d\s()-]+)/i, /phone[:\s]+([+\d\s()-]+)/i]),
-      providerAddress: find([/direcci[oó]n[:\s]+([^\n]+)/i, /address[:\s]+([^\n]+)/i]),
-      description: "",
-      importantInfo: "",
-      // Hotel
-      checkIn: find([/check.in[:\s]+([^\n]+)/i, /fecha de llegada[:\s]+([^\n]+)/i, /entrada[:\s]+([^\n]+)/i]),
-      checkOut: find([/check.out[:\s]+([^\n]+)/i, /fecha de check.out[:\s]+([^\n]+)/i, /salida[:\s]+([^\n]+)/i]),
-      nights: find([/(\d+)\s*noche/i, /noches?[:\s]+(\d+)/i, /nights?[:\s]+(\d+)/i]),
-      rooms: find([/habitaciones?[:\s]+(\d+)/i, /rooms?[:\s]+(\d+)/i]),
-      roomType: find([/tipo de habitaci[oó]n[:\s]+([^\n]+)/i, /categor[ií]a[:\s]+([^\n]+)/i, /room type[:\s]+([^\n]+)/i, /studio[^\n]+/i]),
-      regimen: find([/r[eé]gimen[:\s]+([^\n]+)/i, /r[eé]gimen de alojamiento[:\s]+([^\n]+)/i, /basis[:\s]+([^\n]+)/i, /\b(BB|HB|FB|AI|Todo Incluido|Bed and Breakfast|Media Pens[ií]n|Pens[ií]n Completa)\b/i]),
-      // Vuelo
-      flightNumber: find([/\b(IB|LA|AR|AA|UA|DL|LH|AF|BA|EK|FR|VY|U2)\s*(\d{3,4})\b/]),
-      airline: find([/\b(IBERIA|LATAM|AEROL[IÍ]NEAS ARGENTINAS|AMERICAN AIRLINES|UNITED AIRLINES|DELTA|LUFTHANSA|AIR FRANCE|BRITISH AIRWAYS|EMIRATES|FLYBONDI|JETSMART|RYANAIR|VUELING|EASYJET)\b/i]),
-      origin: cityFromIATA(originCode),
-      originCode,
-      destination: cityFromIATA(destinationCode),
-      destinationCode,
-      departureDate: depDate,
-      departureTime: depTime,
-      arrivalDate: arrDate,
-      arrivalTime: arrTime,
-      flightClass: find([/clase[:\s]+([^\n]+)/i, /\b(Econ[oó]mica|Business|Primera clase|Premium Economy)\b/i]),
-      baggage: find([/equipaje[:\s]+([^\n]+)/i, /\d+\s*(?:kg|piezas?|pieces?)/i]),
-      passengers: [],
-      serviceDate: depDate,
-      serviceTime: depTime,
-    };
-
-    // Detectar número de vuelo correctamente (ej: IB 0850)
-    const flightMatch = t.match(/\b([A-Z]{2})\s*(\d{3,4})\b/);
-    if(flightMatch) parsed.flightNumber = flightMatch[1]+" "+flightMatch[2];
-
-    // Detectar pasajeros — formato "APELLIDO, NOMBRE" o "MR./MRS. NOMBRE"
-    const passFormats = [
-      ...t.matchAll(/PASAJERO[:\s]+([A-ZÁÉÍÓÚÑ][^\n]+)/gi),
-      ...t.matchAll(/([A-ZÁÉÍÓÚÑ]{2,}),\s+([A-ZÁÉÍÓÚÑ][A-ZÁÉÍÓÚÑA-Z\s]+)(?:\s+E-TICKET|\s+VIAJERO)/g),
-    ];
-    const passList = [...passFormats].map(m=>m[1]?.trim()||"").filter(Boolean);
-    parsed.passengers = passList;
-
-    setResult(parsed);
-  };
-
-  const applyData = () => {
-    if(!result) return;
-    const months={enero:"01",febrero:"02",marzo:"03",abril:"04",mayo:"05",junio:"06",julio:"07",agosto:"08",septiembre:"09",octubre:"10",noviembre:"11",diciembre:"12"};
-    const pd = str => {
-      if(!str) return "";
-      const m1=str.match(/(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})/);
-      if(m1){const y=m1[3].length===2?"20"+m1[3]:m1[3];return `${y}-${m1[2].padStart(2,"0")}-${m1[1].padStart(2,"0")}`;}
-      const m2=str.toLowerCase().match(/(\d{1,2})\s+de\s+(\w+)\s+de\s+(\d{4})/);
-      if(m2&&months[m2[2]])return `${m2[3]}-${months[m2[2]]}-${m2[1].padStart(2,"0")}`;
+    const g = patterns => { for(const p of patterns){const m=t.match(p);if(m&&m[1])return m[1].trim();} return ""; };
+    const allDates=[...t.matchAll(/(\d{1,2}[\/-]\d{1,2}[\/-]\d{2,4})/g)].map(m=>m[1]);
+    const allTimes=[...t.matchAll(/(\d{1,2}:\d{2})(?:\s*hs\.?)?/g)].map(m=>m[1]);
+    const allIATA=[...t.matchAll(/\b([A-Z]{3})\b/g)].map(m=>m[1]).filter(c=>c.length===3&&!/^(IB|LA|AR|AA|UA|DL|LH|AF|BA|EK|hs|PM|AM)$/.test(c));
+    const pd = s => {
+      if(!s)return "";
+      const m=s.match(/(\d{1,2})[\/-](\d{1,2})[\/-](\d{2,4})/);
+      if(m){const y=m[3].length===2?"20"+m[3]:m[3];return `${y}-${m[2].padStart(2,"0")}-${m[1].padStart(2,"0")}`;}
       return "";
     };
-    const regMap={"bb":"BB - Bed & Breakfast","hb":"HB - Media Pensión","fb":"FB - Pensión Completa","ai":"AI - Todo Incluido","todo incluido":"AI - Todo Incluido","bed and breakfast":"BB - Bed & Breakfast","solo":"Solo habitación"};
-    const rk=result.regimen?Object.keys(regMap).find(k=>result.regimen.toLowerCase().includes(k)):null;
-    const merged = {};
-    const set = (k,v) => { if(v!==undefined&&v!==null&&v!=="") merged[k]=v; };
-    // Solo cambiar tipo si era "otro" o si detectamos con certeza
-    if(result.type && result.type!=="otro") set("type", result.type);
-    set("providerFileNumber", result.providerRef);
-    set("flightNumber", result.flightNumber);
-    set("airline", result.airline);
-    set("origin", result.origin);
-    set("originCode", result.originCode);
-    set("destination", result.destination);
-    set("destinationCode", result.destinationCode);
-    set("departureDate", pd(result.departureDate));
-    set("departureTime", result.departureTime);
-    set("arrivalDate", pd(result.arrivalDate));
-    set("arrivalTime", result.arrivalTime);
-    set("flightClass", result.flightClass);
-    set("baggage", result.baggage);
-    set("checkIn", pd(result.checkIn));
-    set("checkOut", pd(result.checkOut));
-    set("nights", result.nights);
-    set("rooms", result.rooms);
-    set("roomType", result.roomType);
-    if(rk) set("regimen", regMap[rk]); else if(result.regimen) set("regimen", result.regimen);
-    set("serviceDate", pd(result.serviceDate||result.departureDate));
-    set("serviceTime", result.serviceTime||result.departureTime);
-    set("_extractedProviderName", result.providerName);
-    set("_extractedProviderPhone", result.providerPhone);
-    set("_extractedProviderAddress", result.providerAddress);
-    onApply(merged);
-    setResult(null);
+    const flightMatch = t.match(/\b([A-Z]{2})\s*(\d{3,4})\b/);
+    const hasVuelo = !!flightMatch || /itinerario de vuelo|e-ticket|boarding/i.test(t);
+    const hasHotel = /check.in|check.out|habitaci/i.test(t);
+    const type = hasVuelo?"vuelo":hasHotel?"hotel":"otro";
+    const data = {
+      type,
+      flightNumber: flightMatch?flightMatch[1]+" "+flightMatch[2]:"",
+      airline: g([/\b(IBERIA|LATAM|AEROL[IÍ]NEAS ARGENTINAS|AMERICAN AIRLINES|UNITED|DELTA|LUFTHANSA|AIR FRANCE|BRITISH AIRWAYS|EMIRATES|FLYBONDI|JETSMART|RYANAIR|VUELING)\b/i]),
+      providerFileNumber: g([/c[oó]digo de reserva[:\s]*(\w{5,8})/i, /c[oó]digo de reserva de la aerol[ií]nea[:\s]*(\w{5,8})/i, /localizador[:\s]*(\w{5,8})/i]),
+      originCode: allIATA[0]||"",
+      destinationCode: allIATA[1]||"",
+      departureDate: pd(allDates[0]),
+      departureTime: allTimes[0]||"",
+      arrivalDate: pd(allDates[1]||allDates[0]),
+      arrivalTime: allTimes[1]||"",
+      checkIn: pd(g([/check.in[:\s]+([^\n]+)/i, /fecha de llegada[:\s]+([^\n]+)/i])||allDates[0]),
+      checkOut: pd(g([/check.out[:\s]+([^\n]+)/i, /fecha de salida[:\s]+([^\n]+)/i])||allDates[1]),
+      nights: g([/(\d+)\s*noche/i, /noches?[:\s]+(\d+)/i]),
+      rooms: g([/habitaciones?[:\s]+(\d+)/i]),
+      roomType: g([/tipo de habitaci[oó]n[:\s]+([^\n]+)/i, /categor[ií]a[:\s]+([^\n]+)/i, /studio[^\n]+/i]),
+      regimen: g([/r[eé]gimen[:\s]+([^\n]+)/i, /basis[:\s]+([^\n]+)/i, /\b(BB|HB|FB|AI|Bed and Breakfast|Todo Incluido)\b/i]),
+      baggage: g([/equipaje[:\s]+([^\n]+)/i, /\d+\s*(?:kg|piezas?)/i]),
+    };
+    // Limpiar vacíos
+    Object.keys(data).forEach(k=>{ if(!data[k])delete data[k]; });
+    onApply(data);
     setOpen(false);
     setText("");
   };
 
-  return(<div style={{marginBottom:12}}>
-    {!open&&<button onClick={()=>setOpen(true)} style={{...S.ghostBtn,background:"#F0F9FF",borderColor:"#BAE6FD",color:"#0369A1",fontWeight:600}}>
+  if(!open) return(
+    <button onClick={()=>setOpen(true)} style={{...S.ghostBtn,background:"#F0F9FF",borderColor:"#BAE6FD",color:"#0369A1",fontWeight:600,marginBottom:10}}>
       <Upload size={13}/>📋 Autocompletar desde voucher del proveedor
-    </button>}
-    {open&&!result&&(
-      <div style={{background:"#F0F9FF",border:"1px solid #BAE6FD",borderRadius:10,padding:14}}>
-        <div style={{fontSize:12,fontWeight:700,color:"#0369A1",marginBottom:6}}>📋 Pegá el texto del voucher</div>
-        <div style={{fontSize:11,color:"#64748B",marginBottom:8}}>
-          Abrí el PDF del proveedor → seleccioná todo el texto (Ctrl+A) → copialo (Ctrl+C) → pegalo acá abajo (Ctrl+V)
-        </div>
-        <textarea value={text} onChange={e=>setText(e.target.value)} rows={6} placeholder="Pegá el texto del voucher acá..." style={{...S.input,resize:"vertical",marginBottom:10,fontSize:12}}/>
-        <div style={{display:"flex",gap:8}}>
-          <Btn onClick={parse} disabled={!text.trim()}>Extraer datos</Btn>
-          <Btn variant="secondary" onClick={()=>{setOpen(false);setText("");}}>Cancelar</Btn>
-        </div>
+    </button>
+  );
+
+  return(
+    <div style={{background:"#F0F9FF",border:"1px solid #BAE6FD",borderRadius:10,padding:14,marginBottom:10}}>
+      <div style={{fontSize:12,fontWeight:700,color:"#0369A1",marginBottom:4}}>📋 Pegá el texto del voucher</div>
+      <div style={{fontSize:11,color:"#64748B",marginBottom:8}}>Abrí el PDF → Ctrl+A → Ctrl+C → pegalo acá abajo → Extraer</div>
+      <textarea value={text} onChange={e=>setText(e.target.value)} rows={5}
+        placeholder="Pegá el texto acá..." style={{...S.input,resize:"vertical",marginBottom:8,fontSize:12}}/>
+      <div style={{display:"flex",gap:8}}>
+        <Btn onClick={extract} disabled={!text.trim()}>Extraer y aplicar datos</Btn>
+        <Btn variant="secondary" onClick={()=>{setOpen(false);setText("");}}>Cancelar</Btn>
       </div>
-    )}
-    {result&&(
-      <div style={{background:"#F0FDF4",border:"1px solid #86EFAC",borderRadius:10,padding:14}}>
-        <div style={{fontSize:12,fontWeight:700,color:"#166534",marginBottom:10}}>✅ Datos detectados — revisá y confirmá:</div>
-        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6,fontSize:12,marginBottom:12}}>
-          {[
-            ["Tipo",result.type],["Proveedor",result.providerName],["Referencia",result.providerRef],
-            ["Check-in / Salida",result.checkIn||result.departureDate],["Check-out / Llegada",result.checkOut||result.arrivalDate],
-            ["Noches",result.nights],["Habitación",result.roomType],["Régimen",result.regimen],
-            ["Vuelo",result.flightNumber],["Aerolínea",result.airline],
-            ["Origen",result.originCode?`${result.origin} (${result.originCode})`:result.origin],
-            ["Destino",result.destinationCode?`${result.destination} (${result.destinationCode})`:result.destination],
-            ["Hora salida",result.departureTime],["Hora llegada",result.arrivalTime],
-            ["Equipaje",result.baggage],["Clase",result.flightClass],
-          ].filter(([,v])=>v).map(([k,v])=>(
-            <div key={k} style={{background:"white",borderRadius:6,padding:"5px 8px",border:"1px solid #D1FAE5"}}>
-              <span style={{color:"#64748B",fontWeight:600}}>{k}:</span> {v}
-            </div>
-          ))}
-        </div>
-        {result.passengers?.length>0&&<div style={{fontSize:12,color:"#475569",marginBottom:10}}><strong>Pasajeros:</strong> {result.passengers.join(", ")}</div>}
-        <div style={{display:"flex",gap:8}}>
-          <Btn onClick={applyData}><Check size={13}/>Aplicar datos</Btn>
-          <Btn variant="secondary" onClick={()=>setResult(null)}>Volver</Btn>
-          <Btn variant="secondary" onClick={()=>{setResult(null);setOpen(false);setText("");}}>Cancelar</Btn>
-        </div>
-      </div>
-    )}
-  </div>);
+    </div>
+  );
 }
 
 function ServiceFields({s,arrUpd}){
