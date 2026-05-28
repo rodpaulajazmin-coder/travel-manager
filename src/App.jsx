@@ -507,7 +507,8 @@ Si un campo no existe en el documento, ponelo como string vacío "". No inventes
         })
       });
       const data = await response.json();
-      const text = data.content?.map(c=>c.text||"").join("").trim();
+      const text = (data.content||[]).map(c=>c.text||"").join("").trim();
+      if(!text) throw new Error("Respuesta vacía de la IA");
       const clean = text.replace(/```json|```/g,"").trim();
       const parsed = JSON.parse(clean);
       setResult(parsed);
