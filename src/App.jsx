@@ -496,7 +496,8 @@ Si un campo no existe en el documento, ponelo como string vacío "". No inventes
         throw new Error("Por favor subí un PDF o imagen.");
       }
 
-      const apiKey = "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";
+      const apiKey = import.meta.env.VITE_ANTHROPIC_KEY || "";
+      if(!apiKey){ setError("API key no configurada."); setLoading(false); return; }
       const response = await fetch("https://api.anthropic.com/v1/messages", {
         method:"POST",
         headers:{
