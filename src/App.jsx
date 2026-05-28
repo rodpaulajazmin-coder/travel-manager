@@ -182,7 +182,11 @@ function printVoucherAereo(res,settings,providers){
   const dc=settings.docConfig?.voucherAereo||{};
   const color=settings.voucherColor||'#1a56db';
   const cur=settings.currency||'ARS';
-  const vuelos=res.services.filter(s=>s.type==='vuelo');
+  const vuelos=res.services.filter(s=>s.type==='vuelo').sort((a,b)=>{
+    const da=(a.departureDate||"")+(a.departureTime||"");
+    const db=(b.departureDate||"")+(b.departureTime||"");
+    return da.localeCompare(db);
+  });
   const logoHtml=settings.logo?`<img src="${settings.logo}" style="max-height:40px;max-width:100px;object-fit:contain;background:white;padding:4px;border-radius:6px;" alt="Logo"/>`:'' ;
   const passengerBlock=res.passengers.map(p=>`<div style="display:flex;gap:24px;padding:6px 0;border-bottom:1px solid #e2e8f0;font-size:12px;"><span style="font-weight:600;min-width:200px;">${p.name}</span>${dc.showPassengerDNI&&p.dni?`<span style="color:#64748b;">DNI/Pasaporte: <strong>${p.dni}</strong></span>`:''}${p.birthDate?`<span style="color:#64748b;">Nac: ${fmtDate(p.birthDate)}</span>`:''}</div>`).join('');
   const vueloCards=vuelos.map(s=>{
@@ -249,7 +253,11 @@ function printVoucherTerrestre(res,settings,providers,svcIndex){
   const dc=settings.docConfig?.voucherTerrestre||{};
   const color=settings.voucherColor||'#1a56db';
   const cur=settings.currency||'ARS';
-  const terrestres=res.services.filter(s=>s.type!=='vuelo');
+  const terrestres=res.services.filter(s=>s.type!=='vuelo').sort((a,b)=>{
+    const da=a.checkIn||a.serviceDate||"";
+    const db=b.checkIn||b.serviceDate||"";
+    return da.localeCompare(db);
+  });
   const servicesToPrint=svcIndex!==undefined?[terrestres[svcIndex]]:terrestres;
   const logoHtml=settings.logo?`<img src="${settings.logo}" style="max-height:40px;max-width:100px;object-fit:contain;background:white;padding:4px;border-radius:6px;" alt="Logo"/>`:'' ;
   const passengerBlock=res.passengers.map(p=>`<div style="display:flex;gap:24px;padding:6px 0;border-bottom:1px solid #e2e8f0;font-size:12px;"><span style="font-weight:600;min-width:200px;">${p.name}</span>${dc.showPassengerDNI&&p.dni?`<span style="color:#64748b;">DNI/Pasaporte: <strong>${p.dni}</strong></span>`:''}${p.birthDate?`<span style="color:#64748b;">Nac: ${fmtDate(p.birthDate)}</span>`:''}</div>`).join('');
