@@ -407,7 +407,7 @@ const newPay=()=>({id:genId(),date:today(),amount:0,method:"Transferencia",notes
 const newDue=()=>({id:genId(),dueDate:"",amount:0,paid:false,paidDate:null,notes:""});
 
 // ── VOUCHER READER (pegar texto) ─────────────────
-function VoucherReader({svcId, svcType, arrUpd, providers}){
+function VoucherReader({svcId, svcType, providers, onApply}){
   const [open, setOpen] = useState(false);
   const [text, setText] = useState("");
   const [result, setResult] = useState(null);
@@ -515,41 +515,47 @@ function VoucherReader({svcId, svcType, arrUpd, providers}){
 
   const applyData = () => {
     if(!result) return;
-    const up=(k,v)=>{if(v!==undefined&&v!==null&&v!=="")arrUpd("services",svcId,x=>({...x,[k]:v}));};
-    arrUpd("services",svcId,x=>({...x,type:result.type}));
-    up("providerFileNumber",result.providerRef);
-    up("nights",result.nights);
-    up("rooms",result.rooms);
-    up("roomType",result.roomType);
-    up("flightNumber",result.flightNumber);
-    up("airline",result.airline);
-    up("origin",result.origin);
-    up("originCode",result.originCode);
-    up("destination",result.destination);
-    up("destinationCode",result.destinationCode);
-    up("departureTime",result.departureTime);
-    up("arrivalTime",result.arrivalTime);
-    up("flightClass",result.flightClass);
-    up("baggage",result.baggage);
-    // Fechas — parsear desde DD/MM/YYYY
-    if(result.departureDate) up("departureDate",parseDate(result.departureDate));
-    if(result.arrivalDate) up("arrivalDate",parseDate(result.arrivalDate));
-    if(result.checkIn) up("checkIn",parseDate(result.checkIn));
-    if(result.checkOut) up("checkOut",parseDate(result.checkOut));
-    if(result.serviceDate) up("serviceDate",parseDate(result.serviceDate));
-    up("serviceTime",result.serviceTime);
-    // Régimen
-    if(result.regimen){
-      const regMap={"bb":"BB - Bed & Breakfast","hb":"HB - Media Pensión","fb":"FB - Pensión Completa","ai":"AI - Todo Incluido","todo incluido":"AI - Todo Incluido","bed and breakfast":"BB - Bed & Breakfast","solo":"Solo habitación"};
-      const rk=Object.keys(regMap).find(k=>result.regimen.toLowerCase().includes(k));
-      up("regimen",rk?regMap[rk]:result.regimen);
-    }
-    // Proveedor
-    if(result.providerName){
-      const prov=providers.find(p=>p.name.toLowerCase().includes(result.providerName.toLowerCase().slice(0,5)));
-      if(prov)arrUpd("services",svcId,x=>({...x,providerId:prov.id}));
-      arrUpd("services",svcId,x=>({...x,_extractedProviderName:result.providerName,_extractedProviderPhone:result.providerPhone,_extractedProviderAddress:result.providerAddress}));
-    }
+    const months={enero:"01",febrero:"02",marzo:"03",abril:"04",mayo:"05",junio:"06",julio:"07",agosto:"08",septiembre:"09",octubre:"10",noviembre:"11",diciembre:"12"};
+    const pd = str => {
+      if(!str) return "";
+      const m1=str.match(/(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})/);
+      if(m1){const y=m1[3].length===2?"20"+m1[3]:m1[3];return `${y}-${m1[2].padStart(2,"0")}-${m1[1].padStart(2,"0")}`;}
+      const m2=str.toLowerCase().match(/(\d{1,2})\s+de\s+(\w+)\s+de\s+(\d{4})/);
+      if(m2&&months[m2[2]])return `${m2[3]}-${months[m2[2]]}-${m2[1].padStart(2,"0")}`;
+      return "";
+    };
+    const regMap={"bb":"BB - Bed & Breakfast","hb":"HB - Media Pensión","fb":"FB - Pensión Completa","ai":"AI - Todo Incluido","todo incluido":"AI - Todo Incluido","bed and breakfast":"BB - Bed & Breakfast","solo":"Solo habitación"};
+    const rk=result.regimen?Object.keys(regMap).find(k=>result.regimen.toLowerCase().includes(k)):null;
+    const merged = {
+      type: result.type||svcType,
+      providerFileNumber: result.providerRef||"",
+      flightNumber: result.flightNumber||"",
+      airline: result.airline||"",
+      origin: result.origin||"",
+      originCode: result.originCode||"",
+      destination: result.destination||"",
+      destinationCode: result.destinationCode||"",
+      departureDate: pd(result.departureDate),
+      departureTime: result.departureTime||"",
+      arrivalDate: pd(result.arrivalDate),
+      arrivalTime: result.arrivalTime||"",
+      flightClass: result.flightClass||"",
+      baggage: result.baggage||"",
+      checkIn: pd(result.checkIn),
+      checkOut: pd(result.checkOut),
+      nights: result.nights||"",
+      rooms: result.rooms||"",
+      roomType: result.roomType||"",
+      regimen: rk?regMap[rk]:(result.regimen||""),
+      serviceDate: pd(result.serviceDate||result.departureDate),
+      serviceTime: result.serviceTime||result.departureTime||"",
+      _extractedProviderName: result.providerName||"",
+      _extractedProviderPhone: result.providerPhone||"",
+      _extractedProviderAddress: result.providerAddress||"",
+    };
+    // Eliminar campos vacíos para no pisar datos existentes
+    Object.keys(merged).forEach(k=>{ if(merged[k]==="")delete merged[k]; });
+    onApply(merged);
     setResult(null);
     setOpen(false);
     setText("");
@@ -719,7 +725,8 @@ function ReservationModal({initial,providers,settings,onSave,onClose}){
           <Inp label="File/Localizador proveedor" value={s.providerFileNumber} onChange={v=>arrUpd("services",s.id,x=>({...x,providerFileNumber:v}))} placeholder="N° file del proveedor"/>
         </div>
         <div style={{background:"#F8FAFC",borderRadius:8,padding:12,marginBottom:10}}>
-          <VoucherReader svcId={s.id} svcType={s.type} arrUpd={arrUpd} providers={providers}/>
+          <VoucherReader svcId={s.id} svcType={s.type} providers={providers}
+            onApply={data=>setR(prev=>({...prev,services:prev.services.map(sv=>sv.id===s.id?{...sv,...data}:sv)}))}/>
           <ServiceFields s={s} arrUpd={arrUpd}/>
         </div>
         <div style={{background:"#F0FDF4",borderRadius:8,padding:12}}>
