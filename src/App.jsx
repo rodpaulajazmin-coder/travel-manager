@@ -387,6 +387,216 @@ const newSvc=()=>({id:genId(),type:"vuelo",description:"",providerId:"",provider
 const newPay=()=>({id:genId(),date:today(),amount:0,method:"Transferencia",notes:""});
 const newDue=()=>({id:genId(),dueDate:"",amount:0,paid:false,paidDate:null,notes:""});
 
+// ── AI VOUCHER READER ─────────────────────────────
+function VoucherReader({svcId, svcType, arrUpd, providers}){
+  const [loading, setLoading] = useState(false);
+  const [result, setResult] = useState(null);
+  const [error, setError] = useState(null);
+  const fileRef = useRef();
+
+  const toBase64 = file => new Promise((res,rej)=>{
+    const r = new FileReader();
+    r.onload = ()=>res(r.result.split(",")[1]);
+    r.onerror = rej;
+    r.readAsDataURL(file);
+  });
+
+  const parseDate = str => {
+    if(!str) return "";
+    // Try DD/MM/YYYY
+    const m1 = str.match(/(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})/);
+    if(m1){
+      const y = m1[3].length===2?"20"+m1[3]:m1[3];
+      return `${y}-${m1[2].padStart(2,"0")}-${m1[1].padStart(2,"0")}`;
+    }
+    // Try "11 de junio de 2025"
+    const months = {enero:"01",febrero:"02",marzo:"03",abril:"04",mayo:"05",junio:"06",julio:"07",agosto:"08",septiembre:"09",octubre:"10",noviembre:"11",diciembre:"12"};
+    const m2 = str.toLowerCase().match(/(\d{1,2})\s+de\s+(\w+)\s+de\s+(\d{4})/);
+    if(m2 && months[m2[2]]) return `${m2[3]}-${months[m2[2]]}-${m2[1].padStart(2,"0")}`;
+    return "";
+  };
+
+  const handleFile = async e => {
+    const file = e.target.files[0];
+    if(!file) return;
+    setLoading(true);
+    setError(null);
+    setResult(null);
+    try {
+      const base64 = await toBase64(file);
+      const isImage = file.type.startsWith("image/");
+      const isPDF = file.type === "application/pdf";
+
+      const systemPrompt = `Sos un extractor de datos de vouchers de viaje. Analizá el documento y extraé TODOS los datos que encuentres. Respondé ÚNICAMENTE con un JSON válido sin markdown ni backticks. El JSON debe tener esta estructura exacta:
+{
+  "type": "hotel|vuelo|traslado|otro",
+  "providerName": "nombre del hotel/aerolínea/proveedor",
+  "providerPhone": "teléfono si existe",
+  "providerAddress": "dirección si existe",
+  "providerRef": "número de reserva/localizador/referencia",
+  "description": "descripción breve del servicio",
+  "importantInfo": "información importante resumida (políticas, condiciones, notas relevantes)",
+  "checkIn": "fecha check-in en formato DD/MM/YYYY",
+  "checkOut": "fecha check-out en formato DD/MM/YYYY",
+  "nights": "número de noches",
+  "rooms": "número de habitaciones",
+  "roomType": "tipo de habitación exacto",
+  "regimen": "régimen de alojamiento (BB, HB, FB, AI, Solo habitación)",
+  "flightNumber": "número de vuelo",
+  "airline": "aerolínea",
+  "origin": "ciudad origen",
+  "originCode": "código IATA origen",
+  "destination": "ciudad destino",
+  "destinationCode": "código IATA destino",
+  "departureDate": "fecha salida DD/MM/YYYY",
+  "departureTime": "hora salida HH:MM",
+  "arrivalDate": "fecha llegada DD/MM/YYYY",
+  "arrivalTime": "hora llegada HH:MM",
+  "flightClass": "clase del vuelo",
+  "baggage": "información de equipaje",
+  "passengers": ["nombre completo 1", "nombre completo 2"],
+  "serviceDate": "fecha del servicio DD/MM/YYYY",
+  "serviceTime": "hora del servicio HH:MM",
+  "pickupLocation": "lugar de recogida si es traslado",
+  "dropoffLocation": "lugar de destino si es traslado"
+}
+Si un campo no existe en el documento, ponelo como string vacío "". No inventes datos.`;
+
+      let content;
+      if(isPDF){
+        content = [
+          {type:"document", source:{type:"base64", media_type:"application/pdf", data:base64}},
+          {type:"text", text:"Extraé todos los datos de este voucher y respondé solo con el JSON."}
+        ];
+      } else if(isImage){
+        content = [
+          {type:"image", source:{type:"base64", media_type:file.type, data:base64}},
+          {type:"text", text:"Extraé todos los datos de este voucher y respondé solo con el JSON."}
+        ];
+      } else {
+        throw new Error("Por favor subí un PDF o imagen.");
+      }
+
+      const response = await fetch("https://api.anthropic.com/v1/messages", {
+        method:"POST",
+        headers:{"Content-Type":"application/json"},
+        body: JSON.stringify({
+          model:"claude-sonnet-4-20250514",
+          max_tokens:1500,
+          system: systemPrompt,
+          messages:[{role:"user", content}]
+        })
+      });
+      const data = await response.json();
+      const text = data.content?.map(c=>c.text||"").join("").trim();
+      const clean = text.replace(/```json|```/g,"").trim();
+      const parsed = JSON.parse(clean);
+      setResult(parsed);
+    } catch(e){
+      setError("No se pudo leer el voucher. Intentá con otro archivo.");
+      console.error(e);
+    }
+    setLoading(false);
+    fileRef.current.value="";
+  };
+
+  const applyData = () => {
+    if(!result) return;
+    const up = (k,v) => { if(v) arrUpd("services", svcId, x=>({...x,[k]:v})); };
+    // Detectar tipo
+    const type = result.type==="hotel"?"hotel":result.type==="vuelo"?"vuelo":result.type==="traslado"?"traslado":svcType;
+    arrUpd("services", svcId, x=>({...x, type}));
+    up("description", result.description);
+    up("providerFileNumber", result.providerRef);
+    up("importantInfo", result.importantInfo);
+    // Hotel
+    up("checkIn", parseDate(result.checkIn));
+    up("checkOut", parseDate(result.checkOut));
+    up("nights", result.nights);
+    up("rooms", result.rooms);
+    up("roomType", result.roomType);
+    if(result.regimen){
+      const regMap = {"bb":"BB - Bed & Breakfast","hb":"HB - Media Pensión","fb":"FB - Pensión Completa","ai":"AI - Todo Incluido","solo":"Solo habitación"};
+      const rk = Object.keys(regMap).find(k=>result.regimen.toLowerCase().includes(k));
+      up("regimen", rk?regMap[rk]:result.regimen);
+    }
+    // Vuelo
+    up("flightNumber", result.flightNumber);
+    up("airline", result.airline);
+    up("origin", result.origin);
+    up("originCode", result.originCode?.toUpperCase());
+    up("destination", result.destination);
+    up("destinationCode", result.destinationCode?.toUpperCase());
+    up("departureDate", parseDate(result.departureDate));
+    up("departureTime", result.departureTime);
+    up("arrivalDate", parseDate(result.arrivalDate));
+    up("arrivalTime", result.arrivalTime);
+    up("flightClass", result.flightClass);
+    up("baggage", result.baggage);
+    // Traslado
+    up("serviceDate", parseDate(result.serviceDate));
+    up("serviceTime", result.serviceTime);
+    // Buscar proveedor por nombre
+    if(result.providerName){
+      const prov = providers.find(p=>p.name.toLowerCase().includes(result.providerName.toLowerCase().slice(0,6)));
+      if(prov) arrUpd("services", svcId, x=>({...x, providerId:prov.id}));
+      // Guardar nombre para mostrar
+      arrUpd("services", svcId, x=>({...x, _extractedProviderName: result.providerName, _extractedProviderPhone: result.providerPhone, _extractedProviderAddress: result.providerAddress}));
+    }
+    setResult(null);
+  };
+
+  return(<div style={{marginBottom:12}}>
+    <input ref={fileRef} type="file" accept=".pdf,image/*" onChange={handleFile} style={{display:"none"}}/>
+    <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:result?12:0}}>
+      <button onClick={()=>fileRef.current.click()} disabled={loading}
+        style={{...S.ghostBtn,background:"#F0F9FF",borderColor:"#BAE6FD",color:"#0369A1",fontWeight:600,gap:6}}>
+        {loading
+          ? <><span style={{width:12,height:12,border:"2px solid #0369A1",borderTopColor:"transparent",borderRadius:"50%",display:"inline-block",animation:"spin 1s linear infinite"}}/> Leyendo voucher...</>
+          : <><Upload size={13}/>📄 Leer voucher del proveedor (PDF/imagen)</>
+        }
+      </button>
+      {error&&<span style={{fontSize:12,color:"#EF4444"}}>{error}</span>}
+    </div>
+    {result&&(
+      <div style={{background:"#F0FDF4",border:"1px solid #86EFAC",borderRadius:10,padding:14}}>
+        <div style={{fontSize:12,fontWeight:700,color:"#166534",marginBottom:10}}>✅ Datos extraídos del voucher — revisá y confirmá:</div>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6,fontSize:12,marginBottom:12}}>
+          {[
+            ["Proveedor", result.providerName],
+            ["Referencia", result.providerRef],
+            ["Tipo", result.type],
+            ["Check-in / Salida", result.checkIn||result.departureDate],
+            ["Check-out / Llegada", result.checkOut||result.arrivalDate],
+            ["Noches", result.nights],
+            ["Habitación", result.roomType],
+            ["Régimen", result.regimen],
+            ["Vuelo", result.flightNumber],
+            ["Aerolínea", result.airline],
+            ["Origen", result.originCode?`${result.origin} (${result.originCode})`:""],
+            ["Destino", result.destinationCode?`${result.destination} (${result.destinationCode})`:""],
+            ["Hora salida", result.departureTime],
+            ["Hora llegada", result.arrivalTime],
+            ["Equipaje", result.baggage],
+            ["Clase", result.flightClass],
+          ].filter(([,v])=>v).map(([k,v])=>(
+            <div key={k} style={{background:"white",borderRadius:6,padding:"5px 8px",border:"1px solid #D1FAE5"}}>
+              <span style={{color:"#64748B",fontWeight:600}}>{k}:</span> {v}
+            </div>
+          ))}
+        </div>
+        {result.importantInfo&&<div style={{background:"#FFF7ED",border:"1px solid #FED7AA",borderRadius:6,padding:"6px 10px",fontSize:11,color:"#92400E",marginBottom:10}}><strong>Info importante:</strong> {result.importantInfo}</div>}
+        {result.passengers?.length>0&&<div style={{fontSize:12,color:"#475569",marginBottom:10}}><strong>Pasajeros detectados:</strong> {result.passengers.join(", ")}</div>}
+        <div style={{display:"flex",gap:8}}>
+          <Btn onClick={applyData}><Check size={13}/>Aplicar datos al servicio</Btn>
+          <Btn variant="secondary" onClick={()=>setResult(null)}>Cancelar</Btn>
+        </div>
+      </div>
+    )}
+    <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
+  </div>);
+}
+
 function ServiceFields({s,arrUpd}){
   const up=(k,v)=>arrUpd("services",s.id,x=>({...x,[k]:v}));
   if(s.type==="vuelo") return(<div>
@@ -503,7 +713,10 @@ function ReservationModal({initial,providers,settings,onSave,onClose}){
           <Sel label="Proveedor" value={s.providerId} onChange={v=>arrUpd("services",s.id,x=>({...x,providerId:v}))} options={providers.map(p=>({v:p.id,l:p.name}))}/>
           <Inp label="File/Localizador proveedor" value={s.providerFileNumber} onChange={v=>arrUpd("services",s.id,x=>({...x,providerFileNumber:v}))} placeholder="N° file del proveedor"/>
         </div>
-        <div style={{background:"#F8FAFC",borderRadius:8,padding:12,marginBottom:10}}><ServiceFields s={s} arrUpd={arrUpd}/></div>
+        <div style={{background:"#F8FAFC",borderRadius:8,padding:12,marginBottom:10}}>
+          <VoucherReader svcId={s.id} svcType={s.type} arrUpd={arrUpd} providers={providers}/>
+          <ServiceFields s={s} arrUpd={arrUpd}/>
+        </div>
         <div style={{background:"#F0FDF4",borderRadius:8,padding:12}}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}><span style={{fontSize:11,fontWeight:700,color:"#475569",textTransform:"uppercase",letterSpacing:.5}}>Pagos al proveedor</span><button onClick={()=>arrUpd("services",s.id,x=>({...x,paymentsDue:[...(x.paymentsDue||[]),newDue()]}))} style={S.ghostBtn}><Plus size={12}/>Agregar</button></div>
           {(s.paymentsDue||[]).length===0&&<p style={{fontSize:12,color:"#94A3B8",margin:0}}>Sin pagos programados.</p>}
