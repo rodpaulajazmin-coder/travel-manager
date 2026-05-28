@@ -426,8 +426,69 @@ function VoucherReader({onApply}){
     };
     const flightMatch = t.match(/\b([A-Z]{2})\s*(\d{3,4})\b/);
     const hasVuelo = !!flightMatch || /itinerario de vuelo|e-ticket|boarding/i.test(t);
-    const hasHotel = /check.in|check.out|habitaci/i.test(t);
+    const hasHotel = /check.?in|check.?out|habitaci|room type|hotel confirmation|night|noche|alojamiento/i.test(t);
     const type = hasVuelo?"vuelo":hasHotel?"hotel":"otro";
+
+    // Detectar nombre del hotel — buscar antes de "Check In" o después de ciudad
+    const hotelName = g([
+      /Confirmation[:\s]+\w+[\s\S]{0,100}?\n([A-Z][^\n]{5,50})\n/,
+      /\n([^\n]*(?:Hotel|Inn|Suites?|Resort|Apart|Hostel|Lodge|Palace|Plaza|Grand|Ibis|Hilton|Marriott|Hyatt|Sheraton|Radisson|Novotel|Mercure|Holiday|Best Western)[^\n]*)\n/i,
+    ]);
+
+    // Detectar referencia/confirmación del hotel
+    const hotelRef = g([
+      /Hotel Confirmation No[:\s]*([\w]+)/i,
+      /Confirmation[:\s]*([\w]{4,12})/i,
+      /Agency Ref[:\s]*([\w-]+)/i,
+      /TBOH Confirmation[:\s]*([\w]+)/i,
+      /Voucher Details.*?([A-Z0-9]{5,10})/i,
+    ]);
+
+    // Detectar fechas en inglés: "30 May 2026", "Jun 04 2026"
+    const engMonths={jan:"01",feb:"02",mar:"03",apr:"04",may:"05",jun:"06",jul:"07",aug:"08",sep:"09",oct:"10",nov:"11",dec:"12"};
+    const pdEng = s => {
+      if(!s)return "";
+      // DD Month YYYY o Month DD YYYY
+      const m1=s.match(/(\d{1,2})\s+(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+(\d{4})/i);
+      if(m1)return `${m1[3]}-${engMonths[m1[2].toLowerCase().slice(0,3)]}-${m1[1].padStart(2,"0")}`;
+      const m2=s.match(/(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+(\d{1,2}),?\s+(\d{4})/i);
+      if(m2)return `${m2[3]}-${engMonths[m2[1].toLowerCase().slice(0,3)]}-${m2[2].padStart(2,"0")}`;
+      return pd(s);
+    };
+
+    // Extraer check-in y check-out con soporte inglés/español
+    const checkInRaw = g([/Check\s*In[:\s]+([^\n]+)/i, /check.in[:\s]+([^\n]+)/i, /fecha de llegada[:\s]+([^\n]+)/i, /entrada[:\s]+([^\n]+)/i]);
+    const checkOutRaw = g([/Check\s*Out[:\s]+([^\n]+)/i, /check.out[:\s]+([^\n]+)/i, /fecha de salida[:\s]+([^\n]+)/i, /salida[:\s]+([^\n]+)/i]);
+    const checkInDate = pdEng(checkInRaw)||pd(allDates[0]);
+    const checkOutDate = pdEng(checkOutRaw)||pd(allDates[1]);
+
+    // Calcular noches
+    let nights = g([/(\d+)\s*noche/i, /noches?[:\s]+(\d+)/i, /(\d+)\s*night/i, /nights?[:\s]+(\d+)/i]);
+    if(!nights && checkInDate && checkOutDate){
+      const d1=new Date(checkInDate), d2=new Date(checkOutDate);
+      const diff=Math.round((d2-d1)/(1000*60*60*24));
+      if(diff>0) nights=String(diff);
+    }
+
+    // Tipo de habitación
+    const roomType = g([
+      /Room\s*\d+\s*([^\n]*(?:Double|Single|Twin|Suite|Studio|Queen|King|Deluxe|Superior|Standard|Triple|Family)[^\n]*)/i,
+      /Room type[:\s]+([^\n]+)/i,
+      /tipo de habitaci[oó]n[:\s]+([^\n]+)/i,
+      /categor[ií]a[:\s]+([^\n]+)/i,
+    ]);
+
+    // Régimen
+    const regimenRaw = g([/Incl[:\s]+([^\n]+)/i, /Inclusion[:\s]+([^\n]+)/i, /r[eé]gimen[:\s]+([^\n]+)/i, /basis[:\s]+([^\n]+)/i, /\b(BB|HB|FB|AI|Room Only|Bed and Breakfast|Half Board|Full Board|All Inclusive|Solo habitaci[oó]n)\b/i]);
+    const regimenMap={"room only":"Solo habitación","solo habitacion":"Solo habitación","bb":"BB - Bed & Breakfast","bed and breakfast":"BB - Bed & Breakfast","hb":"HB - Media Pensión","half board":"HB - Media Pensión","fb":"FB - Pensión Completa","full board":"FB - Pensión Completa","ai":"AI - Todo Incluido","all inclusive":"AI - Todo Incluido"};
+    const regimenKey=Object.keys(regimenMap).find(k=>regimenRaw.toLowerCase().includes(k));
+    const regimen = regimenKey?regimenMap[regimenKey]:regimenRaw;
+
+    // Dirección del hotel
+    const hotelAddress = g([/([^\n]*(?:\d+[^\n]*(?:Street|St\.|Avenue|Ave\.|Road|Rd\.|Calle|C\.|Plaza|Blvd)[^\n]*))/i, /([^\n]*,\s*\d{4,6}[^\n]*)/]);
+
+    // Pasajeros del hotel
+    const hotelPassengers=[...t.matchAll(/(?:Mrs?|Mr|Ms|Miss|Sr|Sra)\.?\s+([A-ZÁÉÍÓÚÑ][A-ZÁÉÍÓÚÑA-Za-z\s]+)/g)].map(m=>m[1].trim()).filter(p=>p.length>3);
 
     // Calcular fecha de llegada — si la hora de llegada es menor que la de salida, es día siguiente
     const depTime = allTimes[0]||"";
@@ -460,7 +521,9 @@ function VoucherReader({onApply}){
       type,
       flightNumber: flightMatch?flightMatch[1]+" "+flightMatch[2]:"",
       airline: g([/\b(IBERIA|LATAM|AEROL[IÍ]NEAS ARGENTINAS|AMERICAN AIRLINES|UNITED|DELTA|LUFTHANSA|AIR FRANCE|BRITISH AIRWAYS|EMIRATES|FLYBONDI|JETSMART|RYANAIR|VUELING)\b/i]),
-      providerFileNumber: g([/c[oó]digo de reserva[:\s]*(\w{5,8})/i, /c[oó]digo de reserva de la aerol[ií]nea[:\s]*(\w{5,8})/i, /localizador[:\s]*(\w{5,8})/i]),
+      providerFileNumber: hotelRef||g([/c[oó]digo de reserva[:\s]*(\w{5,8})/i, /localizador[:\s]*(\w{5,8})/i]),
+      _extractedProviderName: hotelName||"",
+      _extractedProviderAddress: hotelAddress||"",
       originCode: allIATA[0]||"",
       origin: iataToCity[allIATA[0]]||"",
       destinationCode: allIATA[1]||"",
@@ -469,13 +532,14 @@ function VoucherReader({onApply}){
       departureTime: depTime,
       arrivalDate: arrDate,
       arrivalTime: arrTime,
-      checkIn: pd(g([/check.in[:\s]+([^\n]+)/i, /fecha de llegada[:\s]+([^\n]+)/i])||allDates[0]),
-      checkOut: pd(g([/check.out[:\s]+([^\n]+)/i, /fecha de salida[:\s]+([^\n]+)/i])||allDates[1]),
-      nights: g([/(\d+)\s*noche/i, /noches?[:\s]+(\d+)/i]),
-      rooms: g([/habitaciones?[:\s]+(\d+)/i]),
-      roomType: g([/tipo de habitaci[oó]n[:\s]+([^\n]+)/i, /categor[ií]a[:\s]+([^\n]+)/i, /studio[^\n]+/i]),
-      regimen: g([/r[eé]gimen[:\s]+([^\n]+)/i, /basis[:\s]+([^\n]+)/i, /\b(BB|HB|FB|AI|Bed and Breakfast|Todo Incluido)\b/i]),
+      checkIn: checkInDate,
+      checkOut: checkOutDate,
+      nights,
+      rooms: g([/habitaciones?[:\s]+(\d+)/i, /Room\s+(\d+):/i, /(\d+)\s+(?:room|habitaci)/i])||"1",
+      roomType,
+      regimen,
       baggage: g([/equipaje[:\s]+([^\n]+)/i, /\d+\s*(?:kg|piezas?)/i]),
+      importantInfo: g([/Special Instructions?[:\s]+([^\n]{10,200})/i, /Important[:\s]+([^\n]{10,200})/i]),
     };
     // Limpiar vacíos
     Object.keys(data).forEach(k=>{ if(!data[k])delete data[k]; });
