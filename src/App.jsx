@@ -428,6 +428,34 @@ function VoucherReader({onApply}){
     const hasVuelo = !!flightMatch || /itinerario de vuelo|e-ticket|boarding/i.test(t);
     const hasHotel = /check.in|check.out|habitaci/i.test(t);
     const type = hasVuelo?"vuelo":hasHotel?"hotel":"otro";
+
+    // Calcular fecha de llegada — si la hora de llegada es menor que la de salida, es día siguiente
+    const depTime = allTimes[0]||"";
+    const arrTime = allTimes[1]||"";
+    const depDate = pd(allDates[0]);
+    let arrDate = pd(allDates[1]||allDates[0]);
+    if(depDate && depTime && arrTime && arrDate===depDate){
+      const [dh,dm]= depTime.split(":").map(Number);
+      const [ah,am]= arrTime.split(":").map(Number);
+      const depMins = dh*60+dm;
+      const arrMins = ah*60+am;
+      if(arrMins <= depMins){
+        // Llega al día siguiente
+        const d = new Date(depDate+"T12:00:00");
+        d.setDate(d.getDate()+1);
+        arrDate = d.toISOString().split("T")[0];
+      }
+    }
+    // También calcular desde duración si está disponible
+    const durationMatch = t.match(/[Dd]uraci[oó]n[:\s]+(\d+)h\s*(\d+)m/);
+    if(durationMatch && depDate && depTime && !arrDate){
+      const dh=parseInt(durationMatch[1]), dm=parseInt(durationMatch[2]);
+      const [h,m]= depTime.split(":").map(Number);
+      const totalMins = h*60+m+dh*60+dm;
+      const d = new Date(depDate+"T12:00:00");
+      if(totalMins>=1440) d.setDate(d.getDate()+1);
+      arrDate = d.toISOString().split("T")[0];
+    }
     const data = {
       type,
       flightNumber: flightMatch?flightMatch[1]+" "+flightMatch[2]:"",
@@ -437,10 +465,10 @@ function VoucherReader({onApply}){
       origin: iataToCity[allIATA[0]]||"",
       destinationCode: allIATA[1]||"",
       destination: iataToCity[allIATA[1]]||"",
-      departureDate: pd(allDates[0]),
-      departureTime: allTimes[0]||"",
-      arrivalDate: pd(allDates[1]||allDates[0]),
-      arrivalTime: allTimes[1]||"",
+      departureDate: depDate,
+      departureTime: depTime,
+      arrivalDate: arrDate,
+      arrivalTime: arrTime,
       checkIn: pd(g([/check.in[:\s]+([^\n]+)/i, /fecha de llegada[:\s]+([^\n]+)/i])||allDates[0]),
       checkOut: pd(g([/check.out[:\s]+([^\n]+)/i, /fecha de salida[:\s]+([^\n]+)/i])||allDates[1]),
       nights: g([/(\d+)\s*noche/i, /noches?[:\s]+(\d+)/i]),
