@@ -283,8 +283,8 @@ function printVoucherTerrestre(res,settings,providers,svcIndex){
       <div style="padding:16px 16px 8px;">
         <div style="font-size:17px;font-weight:800;color:#1e293b;margin-bottom:12px;">${prov?.name||s._extractedProviderName||s.description||'Sin nombre'}</div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px 16px;font-size:12px;margin-bottom:8px;">
-          ${dc.showHotelAddress&&prov?.address?`<div style="grid-column:span 2"><strong>Dirección:</strong> ${prov.address}</div>`:''}
-          ${dc.showHotelPhone&&prov?.phone?`<div><strong>Teléfono:</strong> ${prov.phone}</div>`:''}
+          ${dc.showHotelAddress&&(prov?.address||s._extractedProviderAddress)?`<div style="grid-column:span 2"><strong>Dirección:</strong> ${prov?.address||s._extractedProviderAddress}</div>`:''}
+          ${dc.showHotelPhone&&(prov?.phone||s._extractedProviderPhone)?`<div style="grid-column:span 2"><strong>Teléfono:</strong> ${prov?.phone||s._extractedProviderPhone}</div>`:''}
           ${isHotel&&s.checkIn?`<div><strong>Check-in:</strong> ${fmtDate(s.checkIn)}</div>`:''}
           ${isHotel&&s.checkOut?`<div><strong>Check-out:</strong> ${fmtDate(s.checkOut)}</div>`:''}
           ${isHotel&&s.nights?`<div><strong>Noches:</strong> ${s.nights}</div>`:''}
@@ -293,7 +293,7 @@ function printVoucherTerrestre(res,settings,providers,svcIndex){
           ${dc.showRegimen&&s.regimen?`<div><strong>Régimen:</strong> ${s.regimen}</div>`:''}
           ${!isHotel&&s.serviceDate?`<div><strong>Fecha:</strong> ${fmtDate(s.serviceDate)}</div>`:''}
           ${!isHotel&&s.serviceTime?`<div><strong>Hora:</strong> ${s.serviceTime}</div>`:''}
-          ${s.description&&isHotel?`<div style="grid-column:span 2"><strong>Descripción:</strong> ${s.description}</div>`:''}
+          ${s.description&&isHotel&&s.description!==s._extractedProviderName?`<div style="grid-column:span 2"><strong>Descripción:</strong> ${s.description}</div>`:''}
         </div>
       </div>
       ${dc.showImportantInfo&&s.importantInfo?`<div style="background:#FFF7ED;border-top:1px solid #FED7AA;padding:12px 16px;font-size:11px;color:#92400E;"><strong>Información importante:</strong><br>${s.importantInfo}</div>`:''}
@@ -472,12 +472,14 @@ function VoucherReader({onApply}){
     }
 
     // Tipo de habitación
-    const roomType = g([
+    const roomTypeRaw = g([
       /Room\s*\d+\s*([^\n]*(?:Double|Single|Twin|Suite|Studio|Queen|King|Deluxe|Superior|Standard|Triple|Family)[^\n]*)/i,
       /Room type[:\s]+([^\n]+)/i,
       /tipo de habitaci[oó]n[:\s]+([^\n]+)/i,
       /categor[ií]a[:\s]+([^\n]+)/i,
     ]);
+    // Limpiar "Incl:..." y "NonSmoking" del tipo de habitación
+    const roomType = roomTypeRaw.replace(/\s*Incl[:\s]+[^,]*/gi,"").replace(/,?\s*NonSmoking/gi,"").trim();
 
     // Régimen
     const regimenRaw = g([/Incl[:\s]+([^\n]+)/i, /Inclusion[:\s]+([^\n]+)/i, /r[eé]gimen[:\s]+([^\n]+)/i, /basis[:\s]+([^\n]+)/i, /\b(BB|HB|FB|AI|Room Only|Bed and Breakfast|Half Board|Full Board|All Inclusive|Solo habitaci[oó]n)\b/i]);
@@ -568,8 +570,9 @@ function VoucherReader({onApply}){
   const apply = () => {
     const toApply = {...preview};
     // Para hoteles, usar nombre como descripción si no hay descripción
-    if(toApply.type==="hotel" && toApply._extractedProviderName && !toApply.description){
-      toApply.description = toApply._extractedProviderName;
+    // Para hoteles NO usar el nombre como descripción — ya aparece como nombre del servicio
+    if(toApply.type==="hotel"){
+      toApply.description = "";
     }
     // Agregar horarios de check-in/out a la info importante
     if(toApply.type==="hotel" && (toApply._checkInTime||toApply._checkOutTime)){
