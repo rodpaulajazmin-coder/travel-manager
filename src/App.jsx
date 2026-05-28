@@ -410,8 +410,9 @@ const newDue=()=>({id:genId(),dueDate:"",amount:0,paid:false,paidDate:null,notes
 function VoucherReader({onApply}){
   const [open, setOpen] = useState(false);
   const [text, setText] = useState("");
+  const [preview, setPreview] = useState(null);
 
-  const extract = () => {
+  const extractAndPreview = () => {
     const t = text;
     const iataToCity={"EZE":"Buenos Aires","AEP":"Buenos Aires","COR":"Cordoba","MDZ":"Mendoza","BRC":"Bariloche","IGR":"Iguazu","TUC":"Tucuman","USH":"Ushuaia","GRU":"Sao Paulo","GIG":"Rio de Janeiro","CUN":"Cancun","MEX":"Ciudad de Mexico","BOG":"Bogota","SCL":"Santiago","LIM":"Lima","CUZ":"Cusco","UIO":"Quito","GYE":"Guayaquil","MVD":"Montevideo","ASU":"Asuncion","MIA":"Miami","JFK":"Nueva York","LAX":"Los Angeles","ORD":"Chicago","ATL":"Atlanta","SFO":"San Francisco","BOS":"Boston","LHR":"Londres","CDG":"Paris","AMS":"Amsterdam","FRA":"Frankfurt","MUC":"Munich","FCO":"Roma","BCN":"Barcelona","MAD":"Madrid","LIS":"Lisboa","ZRH":"Zurich","VIE":"Viena","JMK":"Mykonos","ATH":"Atenas","HER":"Heraklion","RHO":"Rodas","PMI":"Palma de Mallorca","IBZ":"Ibiza","TFS":"Tenerife","LPA":"Gran Canaria","AGP":"Malaga","ALC":"Alicante","VLC":"Valencia","DXB":"Dubai","DOH":"Doha","SIN":"Singapur","BKK":"Bangkok","NRT":"Tokio","SYD":"Sidney","YYZ":"Toronto"};
     const g = patterns => { for(const p of patterns){const m=t.match(p);if(m&&m[1])return m[1].trim();} return ""; };
@@ -517,13 +518,31 @@ function VoucherReader({onApply}){
       if(totalMins>=1440) d.setDate(d.getDate()+1);
       arrDate = d.toISOString().split("T")[0];
     }
+    // Teléfono del hotel
+    const hotelPhone = g([/Phone[:\s]+([+\d\s()-]{6,20})/i, /Tel[eé]fono[:\s]+([+\d\s()-]{6,20})/i, /\+?\d[\d\s()-]{8,18}\d/]);
+
+    // Código de reserva aerolínea (diferente al código general)
+    const airlineBookingRef = g([/c[oó]digo de reserva de la aerol[ií]nea[:\s]*([\w]{5,8})/i, /Airline.*?Ref[:\s]*([\w]{5,8})/i, /\b([A-Z]{6})\b(?=\s*\()/]);
+
+    // E-Ticket numbers
+    const etickets = [...t.matchAll(/(?:E-TICKET|E\.TICKET|TICKET)[:\s]*([\d-]{10,20})/gi)].map(m=>m[1]).join(", ");
+
+    // Horarios de check-in/out del hotel
+    const checkInTime = g([/CheckIn Time[^:]*:[:\s]*(\d{1,2}:\d{2}\s*(?:AM|PM)?)/i, /Check.?in.*?Time[:\s]*(\d{1,2}:\d{2}\s*(?:AM|PM)?)/i]);
+    const checkOutTime = g([/CheckOut Time[^:]*:[:\s]*(\d{1,2}:\d{2}\s*(?:AM|PM)?)/i, /Check.?out.*?Time[:\s]*(\d{1,2}:\d{2}\s*(?:AM|PM)?)/i]);
+
     const data = {
       type,
       flightNumber: flightMatch?flightMatch[1]+" "+flightMatch[2]:"",
       airline: g([/\b(IBERIA|LATAM|AEROL[IÍ]NEAS ARGENTINAS|AMERICAN AIRLINES|UNITED|DELTA|LUFTHANSA|AIR FRANCE|BRITISH AIRWAYS|EMIRATES|FLYBONDI|JETSMART|RYANAIR|VUELING)\b/i]),
-      providerFileNumber: hotelRef||g([/c[oó]digo de reserva[:\s]*(\w{5,8})/i, /localizador[:\s]*(\w{5,8})/i]),
+      providerFileNumber: hotelRef||airlineBookingRef||g([/c[oó]digo de reserva[:\s]*(\w{5,8})/i, /localizador[:\s]*(\w{5,8})/i]),
       _extractedProviderName: hotelName||"",
       _extractedProviderAddress: hotelAddress||"",
+      _extractedProviderPhone: hotelPhone||"",
+      _etickets: etickets||"",
+      _airlineBookingRef: airlineBookingRef||"",
+      _checkInTime: checkInTime||"",
+      _checkOutTime: checkOutTime||"",
       originCode: allIATA[0]||"",
       origin: iataToCity[allIATA[0]]||"",
       destinationCode: allIATA[1]||"",
@@ -543,7 +562,39 @@ function VoucherReader({onApply}){
     };
     // Limpiar vacíos
     Object.keys(data).forEach(k=>{ if(!data[k])delete data[k]; });
-    onApply(data);
+    setPreview(data);
+  };
+
+  const apply = () => {
+    const toApply = {...preview};
+    // Para hoteles, usar nombre como descripción si no hay descripción
+    if(toApply.type==="hotel" && toApply._extractedProviderName && !toApply.description){
+      toApply.description = toApply._extractedProviderName;
+    }
+    // Agregar horarios de check-in/out a la info importante
+    if(toApply.type==="hotel" && (toApply._checkInTime||toApply._checkOutTime)){
+      const tiempos = [
+        toApply._checkInTime?`Check-in: ${toApply._checkInTime}`:"",
+        toApply._checkOutTime?`Check-out: ${toApply._checkOutTime}`:"",
+      ].filter(Boolean).join(" | ");
+      toApply.importantInfo = tiempos + (toApply.importantInfo?"\n"+toApply.importantInfo:"");
+    }
+    // Agregar e-tickets y ref aerolínea a info importante del vuelo
+    if(toApply.type==="vuelo"){
+      const extras = [
+        toApply._airlineBookingRef?`Ref. aerolínea: ${toApply._airlineBookingRef}`:"",
+        toApply._etickets?`E-Tickets: ${toApply._etickets}`:"",
+      ].filter(Boolean).join(" | ");
+      if(extras) toApply.importantInfo = extras;
+    }
+    // Limpiar campos internos
+    delete toApply._extractedProviderPhone;
+    delete toApply._etickets;
+    delete toApply._airlineBookingRef;
+    delete toApply._checkInTime;
+    delete toApply._checkOutTime;
+    onApply(toApply);
+    setPreview(null);
     setOpen(false);
     setText("");
   };
@@ -554,6 +605,48 @@ function VoucherReader({onApply}){
     </button>
   );
 
+  if(preview) return(
+    <div style={{background:"#F0FDF4",border:"1px solid #86EFAC",borderRadius:10,padding:14,marginBottom:10}}>
+      <div style={{fontSize:12,fontWeight:700,color:"#166534",marginBottom:10}}>✅ Datos detectados — revisá y confirmá:</div>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6,fontSize:12,marginBottom:12}}>
+        {[
+          ["Tipo", preview.type==="vuelo"?"✈ Vuelo":preview.type==="hotel"?"🏨 Hotel":preview.type==="traslado"?"🚌 Traslado":"Otro"],
+          ["Hotel/Proveedor", preview._extractedProviderName],
+          ["Dirección", preview._extractedProviderAddress],
+          ["Teléfono hotel", preview._extractedProviderPhone],
+          ["Referencia/Confirmación", preview.providerFileNumber],
+          ["Ref. aerolínea", preview._airlineBookingRef],
+          ["E-Tickets", preview._etickets],
+          ["Check-in / Salida", preview.checkIn?fmtDate(preview.checkIn):(preview.departureDate?fmtDate(preview.departureDate):"")],
+          ["Check-out / Llegada", preview.checkOut?fmtDate(preview.checkOut):(preview.arrivalDate?fmtDate(preview.arrivalDate):"")],
+          ["Horario check-in", preview._checkInTime],
+          ["Horario check-out", preview._checkOutTime],
+          ["Noches", preview.nights],
+          ["Habitaciones", preview.rooms],
+          ["Tipo de habitación", preview.roomType],
+          ["Régimen", preview.regimen],
+          ["Vuelo", preview.flightNumber],
+          ["Aerolínea", preview.airline],
+          ["Origen", preview.originCode?`${preview.origin} (${preview.originCode})`:preview.origin],
+          ["Destino", preview.destinationCode?`${preview.destination} (${preview.destinationCode})`:preview.destination],
+          ["Hora salida", preview.departureTime],
+          ["Hora llegada", preview.arrivalTime],
+          ["Equipaje", preview.baggage],
+        ].filter(([,v])=>v).map(([k,v])=>(
+          <div key={k} style={{background:"white",borderRadius:6,padding:"5px 8px",border:"1px solid #D1FAE5",fontSize:11}}>
+            <span style={{color:"#64748B",fontWeight:700}}>{k}:</span> {v}
+          </div>
+        ))}
+      </div>
+      {preview.importantInfo&&<div style={{background:"#FFF7ED",border:"1px solid #FED7AA",borderRadius:6,padding:"6px 10px",fontSize:11,color:"#92400E",marginBottom:10}}><strong>Info importante:</strong> {preview.importantInfo}</div>}
+      <div style={{display:"flex",gap:8}}>
+        <Btn onClick={apply}><Check size={13}/>Aplicar datos</Btn>
+        <Btn variant="secondary" onClick={()=>setPreview(null)}>Volver</Btn>
+        <Btn variant="secondary" onClick={()=>{setPreview(null);setOpen(false);setText("");}}>Cancelar</Btn>
+      </div>
+    </div>
+  );
+
   return(
     <div style={{background:"#F0F9FF",border:"1px solid #BAE6FD",borderRadius:10,padding:14,marginBottom:10}}>
       <div style={{fontSize:12,fontWeight:700,color:"#0369A1",marginBottom:4}}>📋 Pegá el texto del voucher</div>
@@ -561,7 +654,7 @@ function VoucherReader({onApply}){
       <textarea value={text} onChange={e=>setText(e.target.value)} rows={5}
         placeholder="Pegá el texto acá..." style={{...S.input,resize:"vertical",marginBottom:8,fontSize:12}}/>
       <div style={{display:"flex",gap:8}}>
-        <Btn onClick={extract} disabled={!text.trim()}>Extraer y aplicar datos</Btn>
+        <Btn onClick={extractAndPreview} disabled={!text.trim()}>Extraer datos</Btn>
         <Btn variant="secondary" onClick={()=>{setOpen(false);setText("");}}>Cancelar</Btn>
       </div>
     </div>
