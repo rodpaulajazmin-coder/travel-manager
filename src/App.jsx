@@ -428,48 +428,87 @@ function VoucherReader({svcId, svcType, arrUpd, providers}){
     const find = patterns => { for(const p of patterns){const m=t.match(p);if(m)return m[1]?.trim();} return ""; };
 
     // Detectar tipo
-    const isVuelo = /vuelo|flight|aerol[ií]nea|airline|salida|llegada|IATA|boarding/i.test(t);
-    const isHotel = /hotel|check.in|check.out|habitaci[oó]n|room|noche|alojamiento/i.test(t);
+    const isVuelo = /vuelo|flight|aerol[ií]nea|airline|itinerario|boarding|IATA/i.test(t);
+    const isHotel = /hotel|check.in|check.out|habitaci[oó]n|room|noche|alojamiento|r[eé]gimen/i.test(t);
     const isTraslado = /traslado|transfer|pickup|recogida|shuttle/i.test(t);
     const type = isVuelo?"vuelo":isHotel?"hotel":isTraslado?"traslado":"otro";
 
+    // Extraer todos los códigos IATA (3 letras mayúsculas) del texto
+    const iataAll = [...t.matchAll(/\b([A-Z]{3})\b/g)].map(m=>m[1]);
+    // Filtrar solo los que son aeropuertos conocidos o aparecen en contexto de vuelo
+    const knownIATA = new Set(["EZE","AEP","COR","MDZ","BRC","IGR","NQN","SDE","TUC","USH","GRU","CGH","BSB","SSA","REC","FOR","MAO","POA","CUN","MEX","GDL","BOG","MDE","CLO","SCL","PMC","LIM","CUZ","BOG","UIO","GYE","MVD","ASU","VVI","LPB","MIA","JFK","LAX","ORD","ATL","DFW","SFO","BOS","DEN","SEA","LHR","LGW","CDG","ORY","AMS","FRA","MUC","FCO","CIA","BCN","MAD","LIS","ZRH","VIE","BRU","CPH","ARN","OSL","HEL","DUB","GVA","MXP","MAN","BHX","EDI","NCE","MRS","TLS","BOD","NTE","LYS","JMK","ATH","HER","RHO","SKG","MLA","PMI","IBZ","ACE","TFS","LPA","FUE","AGP","ALC","VLC","BIO","SVQ"]);
+    const iataInContext = iataAll.filter(c => knownIATA.has(c) || (c.length===3 && /^[A-Z]{3}$/.test(c)));
+
+    // Detectar par origen-destino: buscar patrón "JMK ... MAD" o "JMK - MAD"
+    const iataPair = t.match(/\b([A-Z]{3})\b[\s\S]{0,50}?\b([A-Z]{3})\b/);
+    let originCode = "", destinationCode = "";
+    if(iataAll.length >= 2){
+      // Tomar los primeros dos IATA únicos encontrados
+      const uniq = [...new Set(iataAll.filter(c=>c!=="IB"&&c!=="hs"&&c.length===3))];
+      if(uniq.length>=2){ originCode=uniq[0]; destinationCode=uniq[1]; }
+      else if(uniq.length===1){ originCode=uniq[0]; }
+    }
+
+    // Detectar fechas — buscar DD/MM/YYYY o "25/07/2026"
+    const allDates = [...t.matchAll(/(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4})/g)].map(m=>m[1]);
+    const depDate = allDates[0]||"";
+    const arrDate = allDates[1]||allDates[0]||"";
+
+    // Detectar horarios HH:MM
+    const allTimes = [...t.matchAll(/(\d{1,2}:\d{2})(?:\s*hs)?/g)].map(m=>m[1]);
+    const depTime = allTimes[0]||"";
+    const arrTime = allTimes[1]||"";
+
+    // Detectar nombres de ciudades junto a códigos IATA
+    const cityFromIATA = code => {
+      const cityMap = {EZE:"Buenos Aires",AEP:"Buenos Aires",GRU:"São Paulo",JMK:"Mykonos",ATH:"Atenas",MAD:"Madrid",MIA:"Miami",JFK:"Nueva York",LAX:"Los Ángeles",LHR:"Londres",CDG:"París",FCO:"Roma",BCN:"Barcelona",CUN:"Cancún",SCL:"Santiago",LIM:"Lima",BOG:"Bogotá",GIG:"Río de Janeiro",PMI:"Palma",LIS:"Lisboa",AMS:"Ámsterdam",FRA:"Frankfurt",ZRH:"Zúrich"};
+      return cityMap[code]||code;
+    };
+
     const parsed = {
       type,
-      providerName: find([/hotel[:\s]+([^\n]+)/i, /([A-Z][A-Z\s&-]{3,})\n.*hotel/i, /aerol[ií]nea[:\s]+([^\n]+)/i]),
-      providerRef: find([/c[oó]digo de reserva[:\s]+([\w]+)/i, /localizador[:\s]+([\w]+)/i, /referencia[:\s]+([\w]+)/i, /booking[:\s#]+([\w]+)/i, /reserva[:\s#]+([\w-]+)/i, /([A-Z]{6})\b/]),
+      providerName: find([/hotel[:\s]+([^\n]+)/i, /\b(IBERIA|LATAM|AEROL[IÍ]NEAS ARGENTINAS|AMERICAN AIRLINES|UNITED|DELTA|LUFTHANSA|AIR FRANCE|BRITISH AIRWAYS|EMIRATES|FLYBONDI|JETSMART)\b/i, /aerol[ií]nea[:\s]+([^\n]+)/i]),
+      providerRef: find([/c[oó]digo de reserva[:\s]*([\w]{5,8})/i, /c[oó]digo de reserva de la aerol[ií]nea[:\s]*([\w]{5,8})/i, /localizador[:\s]*([\w]+)/i, /referencia[:\s]*([\w]+)/i, /booking[:\s#]*([\w]+)/i, /\b([A-Z]{6})\b/]),
       providerPhone: find([/tel[eé]fono[:\s]+([+\d\s()-]+)/i, /phone[:\s]+([+\d\s()-]+)/i]),
       providerAddress: find([/direcci[oó]n[:\s]+([^\n]+)/i, /address[:\s]+([^\n]+)/i]),
       description: "",
       importantInfo: "",
       // Hotel
-      checkIn: find([/check.in[:\s]+([^\n]+)/i, /llegada[:\s]+([^\n]+)/i, /entrada[:\s]+([^\n]+)/i]),
-      checkOut: find([/check.out[:\s]+([^\n]+)/i, /salida[:\s]+([^\n]+)/i, /fecha de salida[:\s]+([^\n]+)/i]),
-      nights: find([/noches?[:\s]+(\d+)/i, /nights?[:\s]+(\d+)/i, /(\d+)\s*noche/i]),
+      checkIn: find([/check.in[:\s]+([^\n]+)/i, /fecha de llegada[:\s]+([^\n]+)/i, /entrada[:\s]+([^\n]+)/i]),
+      checkOut: find([/check.out[:\s]+([^\n]+)/i, /fecha de check.out[:\s]+([^\n]+)/i, /salida[:\s]+([^\n]+)/i]),
+      nights: find([/(\d+)\s*noche/i, /noches?[:\s]+(\d+)/i, /nights?[:\s]+(\d+)/i]),
       rooms: find([/habitaciones?[:\s]+(\d+)/i, /rooms?[:\s]+(\d+)/i]),
-      roomType: find([/tipo de habitaci[oó]n[:\s]+([^\n]+)/i, /categor[ií]a[:\s]+([^\n]+)/i, /room type[:\s]+([^\n]+)/i]),
-      regimen: find([/r[eé]gimen[:\s]+([^\n]+)/i, /basis[:\s]+([^\n]+)/i, /\b(BB|HB|FB|AI|Solo habitaci[oó]n)\b/i]),
+      roomType: find([/tipo de habitaci[oó]n[:\s]+([^\n]+)/i, /categor[ií]a[:\s]+([^\n]+)/i, /room type[:\s]+([^\n]+)/i, /studio[^\n]+/i]),
+      regimen: find([/r[eé]gimen[:\s]+([^\n]+)/i, /r[eé]gimen de alojamiento[:\s]+([^\n]+)/i, /basis[:\s]+([^\n]+)/i, /\b(BB|HB|FB|AI|Todo Incluido|Bed and Breakfast|Media Pens[ií]n|Pens[ií]n Completa)\b/i]),
       // Vuelo
-      flightNumber: find([/vuelo[:\s]+([A-Z]{2}\d+)/i, /flight[:\s]+([A-Z]{2}\d+)/i, /\b([A-Z]{2}\s?\d{3,4})\b/]),
-      airline: find([/aerol[ií]nea[:\s]+([^\n]+)/i, /airline[:\s]+([^\n]+)/i, /operado por[:\s]+([^\n]+)/i, /\b(IBERIA|LATAM|AEROL[IÍ]NEAS|AMERICAN|UNITED|DELTA|LUFTHANSA|AIR FRANCE|BRITISH|EMIRATES)\b/i]),
-      origin: find([/origen[:\s]+([^\n]+)/i, /desde[:\s]+([^\n]+)/i, /from[:\s]+([^\n]+)/i]),
-      originCode: find([/([A-Z]{3})\s*[-–]\s*[A-Z]{3}/, /\b(EZE|AEP|GRU|SCL|BOG|LIM|MAD|MIA|JFK|LAX|CDG|LHR|FCO|BCN)\b/]),
-      destination: find([/destino[:\s]+([^\n]+)/i, /hacia[:\s]+([^\n]+)/i, /to[:\s]+([^\n]+)/i]),
-      destinationCode: find([/[A-Z]{3}\s*[-–]\s*([A-Z]{3})/, /\b(CUN|MIA|JFK|LAX|CDG|LHR|FCO|BCN|MAD|GRU|SCL|BOG|LIM|JMK|PMI|ORY)\b/]),
-      departureDate: find([/salida[:\s]+([\d\/\-]+)/i, /fecha salida[:\s]+([\d\/\-]+)/i, /departure[:\s]+([\d\/\-]+)/i, /(\d{2}\/\d{2}\/\d{4})/]),
-      departureTime: find([/salida[:\s]+[\d\/]+\s+(\d{2}:\d{2})/i, /(\d{2}:\d{2})\s*hs/i, /departure.*?(\d{2}:\d{2})/i]),
-      arrivalDate: find([/llegada[:\s]+([\d\/\-]+)/i, /fecha llegada[:\s]+([\d\/\-]+)/i, /arrival[:\s]+([\d\/\-]+)/i]),
-      arrivalTime: find([/llegada[:\s]+[\d\/]+\s+(\d{2}:\d{2})/i, /arrival.*?(\d{2}:\d{2})/i]),
-      flightClass: find([/clase[:\s]+([^\n]+)/i, /class[:\s]+([^\n]+)/i, /\b(Econ[oó]mica|Business|Primera clase|Premium Economy)\b/i]),
-      baggage: find([/equipaje[:\s]+([^\n]+)/i, /baggage[:\s]+([^\n]+)/i, /\d+\s*kg/i]),
+      flightNumber: find([/\b(IB|LA|AR|AA|UA|DL|LH|AF|BA|EK|FR|VY|U2)\s*(\d{3,4})\b/]),
+      airline: find([/\b(IBERIA|LATAM|AEROL[IÍ]NEAS ARGENTINAS|AMERICAN AIRLINES|UNITED AIRLINES|DELTA|LUFTHANSA|AIR FRANCE|BRITISH AIRWAYS|EMIRATES|FLYBONDI|JETSMART|RYANAIR|VUELING|EASYJET)\b/i]),
+      origin: cityFromIATA(originCode),
+      originCode,
+      destination: cityFromIATA(destinationCode),
+      destinationCode,
+      departureDate: depDate,
+      departureTime: depTime,
+      arrivalDate: arrDate,
+      arrivalTime: arrTime,
+      flightClass: find([/clase[:\s]+([^\n]+)/i, /\b(Econ[oó]mica|Business|Primera clase|Premium Economy)\b/i]),
+      baggage: find([/equipaje[:\s]+([^\n]+)/i, /\d+\s*(?:kg|piezas?|pieces?)/i]),
       passengers: [],
-      serviceDate: "",
-      serviceTime: "",
+      serviceDate: depDate,
+      serviceTime: depTime,
     };
 
-    // Detectar pasajeros
-    const passMatches = t.matchAll(/(?:pasajero|passenger|nombre|name)[:\s]+([A-ZÁÉÍÓÚÑ][^\n,]+)/gi);
-    const passList = [...t.matchAll(/(?:SR\.|SRA\.|MR\.|MRS\.|MS\.)\s+([A-Z][A-Z,\s]+)/g)].map(m=>m[1].trim());
-    parsed.passengers = passList.length > 0 ? passList : [];
+    // Detectar número de vuelo correctamente (ej: IB 0850)
+    const flightMatch = t.match(/\b([A-Z]{2})\s*(\d{3,4})\b/);
+    if(flightMatch) parsed.flightNumber = flightMatch[1]+" "+flightMatch[2];
+
+    // Detectar pasajeros — formato "APELLIDO, NOMBRE" o "MR./MRS. NOMBRE"
+    const passFormats = [
+      ...t.matchAll(/PASAJERO[:\s]+([A-ZÁÉÍÓÚÑ][^\n]+)/gi),
+      ...t.matchAll(/([A-ZÁÉÍÓÚÑ]{2,}),\s+([A-ZÁÉÍÓÚÑ][A-ZÁÉÍÓÚÑA-Z\s]+)(?:\s+E-TICKET|\s+VIAJERO)/g),
+    ];
+    const passList = [...passFormats].map(m=>m[1]?.trim()||"").filter(Boolean);
+    parsed.passengers = passList;
 
     setResult(parsed);
   };
