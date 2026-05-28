@@ -515,35 +515,36 @@ function VoucherReader({svcId, svcType, arrUpd, providers}){
 
   const applyData = () => {
     if(!result) return;
-    const up=(k,v)=>{if(v)arrUpd("services",svcId,x=>({...x,[k]:v}));};
+    const up=(k,v)=>{if(v!==undefined&&v!==null&&v!=="")arrUpd("services",svcId,x=>({...x,[k]:v}));};
     arrUpd("services",svcId,x=>({...x,type:result.type}));
-    up("description",result.description);
     up("providerFileNumber",result.providerRef);
-    up("importantInfo",result.importantInfo);
-    up("checkIn",parseDate(result.checkIn));
-    up("checkOut",parseDate(result.checkOut));
     up("nights",result.nights);
     up("rooms",result.rooms);
     up("roomType",result.roomType);
-    if(result.regimen){
-      const regMap={"bb":"BB - Bed & Breakfast","hb":"HB - Media Pensión","fb":"FB - Pensión Completa","ai":"AI - Todo Incluido","solo":"Solo habitación"};
-      const rk=Object.keys(regMap).find(k=>result.regimen.toLowerCase().includes(k));
-      up("regimen",rk?regMap[rk]:result.regimen);
-    }
     up("flightNumber",result.flightNumber);
     up("airline",result.airline);
     up("origin",result.origin);
-    up("originCode",result.originCode?.toUpperCase());
+    up("originCode",result.originCode);
     up("destination",result.destination);
-    up("destinationCode",result.destinationCode?.toUpperCase());
-    up("departureDate",parseDate(result.departureDate));
+    up("destinationCode",result.destinationCode);
     up("departureTime",result.departureTime);
-    up("arrivalDate",parseDate(result.arrivalDate));
     up("arrivalTime",result.arrivalTime);
     up("flightClass",result.flightClass);
     up("baggage",result.baggage);
-    up("serviceDate",parseDate(result.serviceDate));
+    // Fechas — parsear desde DD/MM/YYYY
+    if(result.departureDate) up("departureDate",parseDate(result.departureDate));
+    if(result.arrivalDate) up("arrivalDate",parseDate(result.arrivalDate));
+    if(result.checkIn) up("checkIn",parseDate(result.checkIn));
+    if(result.checkOut) up("checkOut",parseDate(result.checkOut));
+    if(result.serviceDate) up("serviceDate",parseDate(result.serviceDate));
     up("serviceTime",result.serviceTime);
+    // Régimen
+    if(result.regimen){
+      const regMap={"bb":"BB - Bed & Breakfast","hb":"HB - Media Pensión","fb":"FB - Pensión Completa","ai":"AI - Todo Incluido","todo incluido":"AI - Todo Incluido","bed and breakfast":"BB - Bed & Breakfast","solo":"Solo habitación"};
+      const rk=Object.keys(regMap).find(k=>result.regimen.toLowerCase().includes(k));
+      up("regimen",rk?regMap[rk]:result.regimen);
+    }
+    // Proveedor
     if(result.providerName){
       const prov=providers.find(p=>p.name.toLowerCase().includes(result.providerName.toLowerCase().slice(0,5)));
       if(prov)arrUpd("services",svcId,x=>({...x,providerId:prov.id}));
