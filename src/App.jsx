@@ -413,10 +413,11 @@ function VoucherReader({onApply}){
 
   const extract = () => {
     const t = text;
+    const iataToCity={"EZE":"Buenos Aires","AEP":"Buenos Aires","COR":"Cordoba","MDZ":"Mendoza","BRC":"Bariloche","IGR":"Iguazu","TUC":"Tucuman","USH":"Ushuaia","GRU":"Sao Paulo","GIG":"Rio de Janeiro","CUN":"Cancun","MEX":"Ciudad de Mexico","BOG":"Bogota","SCL":"Santiago","LIM":"Lima","CUZ":"Cusco","UIO":"Quito","GYE":"Guayaquil","MVD":"Montevideo","ASU":"Asuncion","MIA":"Miami","JFK":"Nueva York","LAX":"Los Angeles","ORD":"Chicago","ATL":"Atlanta","SFO":"San Francisco","BOS":"Boston","LHR":"Londres","CDG":"Paris","AMS":"Amsterdam","FRA":"Frankfurt","MUC":"Munich","FCO":"Roma","BCN":"Barcelona","MAD":"Madrid","LIS":"Lisboa","ZRH":"Zurich","VIE":"Viena","JMK":"Mykonos","ATH":"Atenas","HER":"Heraklion","RHO":"Rodas","PMI":"Palma de Mallorca","IBZ":"Ibiza","TFS":"Tenerife","LPA":"Gran Canaria","AGP":"Malaga","ALC":"Alicante","VLC":"Valencia","DXB":"Dubai","DOH":"Doha","SIN":"Singapur","BKK":"Bangkok","NRT":"Tokio","SYD":"Sidney","YYZ":"Toronto"};
     const g = patterns => { for(const p of patterns){const m=t.match(p);if(m&&m[1])return m[1].trim();} return ""; };
     const allDates=[...t.matchAll(/(\d{1,2}[\/-]\d{1,2}[\/-]\d{2,4})/g)].map(m=>m[1]);
     const allTimes=[...t.matchAll(/(\d{1,2}:\d{2})(?:\s*hs\.?)?/g)].map(m=>m[1]);
-    const allIATA=[...t.matchAll(/\b([A-Z]{3})\b/g)].map(m=>m[1]).filter(c=>c.length===3&&!/^(IB|LA|AR|AA|UA|DL|LH|AF|BA|EK|hs|PM|AM)$/.test(c));
+    const allIATA=[...t.matchAll(/\b([A-Z]{3})\b/g)].map(m=>m[1]).filter(c=>c.length===3&&!/^(IB|LA|AR|AA|UA|DL|LH|AF|BA|EK|hs|PM|AM|SR|MR|MS|BB|HB|FB|AI)$/.test(c));
     const pd = s => {
       if(!s)return "";
       const m=s.match(/(\d{1,2})[\/-](\d{1,2})[\/-](\d{2,4})/);
