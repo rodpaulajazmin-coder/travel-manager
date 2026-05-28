@@ -281,7 +281,7 @@ function printVoucherTerrestre(res,settings,providers,svcIndex){
         ${dc.showProviderRef&&s.providerFileNumber?`<span style="font-size:12px;opacity:.9;">Ref: ${s.providerFileNumber}</span>`:''}
       </div>
       <div style="padding:16px 16px 8px;">
-        <div style="font-size:17px;font-weight:800;color:#1e293b;margin-bottom:12px;">${prov?.name||s.description||'Sin nombre'}</div>
+        <div style="font-size:17px;font-weight:800;color:#1e293b;margin-bottom:12px;">${prov?.name||s._extractedProviderName||s.description||'Sin nombre'}</div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px 16px;font-size:12px;margin-bottom:8px;">
           ${dc.showHotelAddress&&prov?.address?`<div style="grid-column:span 2"><strong>Dirección:</strong> ${prov.address}</div>`:''}
           ${dc.showHotelPhone&&prov?.phone?`<div><strong>Teléfono:</strong> ${prov.phone}</div>`:''}
@@ -432,8 +432,8 @@ function VoucherReader({onApply}){
 
     // Detectar nombre del hotel — buscar antes de "Check In" o después de ciudad
     const hotelName = g([
-      /Confirmation[:\s]+\w+[\s\S]{0,100}?\n([A-Z][^\n]{5,50})\n/,
-      /\n([^\n]*(?:Hotel|Inn|Suites?|Resort|Apart|Hostel|Lodge|Palace|Plaza|Grand|Ibis|Hilton|Marriott|Hyatt|Sheraton|Radisson|Novotel|Mercure|Holiday|Best Western)[^\n]*)\n/i,
+      /\n([^\n]*(?:ibis|Hilton|Marriott|Hyatt|Sheraton|Radisson|Novotel|Mercure|Holiday Inn|Best Western|NH |Meli[aá]|Riu |Barcelo|Occidental|Wyndham|Crowne|InterContinental|Courtyard|Hampton|Doubletree|Renaissance|W Hotel|Sofitel|Pullman|MGallery|Swissotel|Fairmont|Accor|Eurostars|Tryp|Hesperia|AC Hotel|Premier Inn|Travelodge|Comfort Inn|Quality Inn|Days Inn|Ramada|Howard Johnson|La Quinta)[^\n]*)\n/i,
+      /\n([^\n]*(?:Hotel|Inn|Suites?|Resort|Apart(?:ment)?|Hostel|Lodge|Palace|Plaza|Grand)[^\n]{3,50})\n/i,
     ]);
 
     // Detectar referencia/confirmación del hotel
@@ -543,14 +543,14 @@ function VoucherReader({onApply}){
       _airlineBookingRef: airlineBookingRef||"",
       _checkInTime: checkInTime||"",
       _checkOutTime: checkOutTime||"",
-      originCode: allIATA[0]||"",
-      origin: iataToCity[allIATA[0]]||"",
-      destinationCode: allIATA[1]||"",
-      destination: iataToCity[allIATA[1]]||"",
-      departureDate: depDate,
-      departureTime: depTime,
-      arrivalDate: arrDate,
-      arrivalTime: arrTime,
+      originCode: hasVuelo?(allIATA[0]||""):"",
+      origin: hasVuelo?(iataToCity[allIATA[0]]||""):"",
+      destinationCode: hasVuelo?(allIATA[1]||""):"",
+      destination: hasVuelo?(iataToCity[allIATA[1]]||""):"",
+      departureDate: hasVuelo?depDate:"",
+      departureTime: hasVuelo?depTime:"",
+      arrivalDate: hasVuelo?arrDate:"",
+      arrivalTime: hasVuelo?arrTime:"",
       checkIn: checkInDate,
       checkOut: checkOutDate,
       nights,
@@ -587,8 +587,8 @@ function VoucherReader({onApply}){
       ].filter(Boolean).join(" | ");
       if(extras) toApply.importantInfo = extras;
     }
-    // Limpiar campos internos
-    delete toApply._extractedProviderPhone;
+    // NO borrar campos internos — los necesita el voucher para mostrar dirección y teléfono
+    // delete toApply._extractedProviderPhone; -- comentado intencional
     delete toApply._etickets;
     delete toApply._airlineBookingRef;
     delete toApply._checkInTime;
