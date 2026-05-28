@@ -62,12 +62,23 @@ async function loadDB(){
     const data = await r.json();
     if(!data) return INIT;
     // Convertir arrays almacenados como objetos de Firebase
+    const clients = data.clients ? Object.values(data.clients).filter(Boolean) : [];
+    const providers = data.providers ? Object.values(data.providers).filter(Boolean) : [];
+    const reservations = data.reservations ? Object.values(data.reservations).filter(Boolean).map(r=>({
+      ...r,
+      passengers: r.passengers ? (Array.isArray(r.passengers) ? r.passengers : Object.values(r.passengers)).filter(Boolean) : [],
+      services: r.services ? (Array.isArray(r.services) ? r.services : Object.values(r.services)).filter(Boolean).map(s=>({
+        ...s,
+        paymentsDue: s.paymentsDue ? (Array.isArray(s.paymentsDue) ? s.paymentsDue : Object.values(s.paymentsDue)).filter(Boolean) : [],
+      })) : [],
+      paymentsReceived: r.paymentsReceived ? (Array.isArray(r.paymentsReceived) ? r.paymentsReceived : Object.values(r.paymentsReceived)).filter(Boolean) : [],
+    })) : [];
     return {
       ...INIT,
       ...data,
-      clients: data.clients ? Object.values(data.clients) : [],
-      providers: data.providers ? Object.values(data.providers) : [],
-      reservations: data.reservations ? Object.values(data.reservations) : [],
+      clients,
+      providers,
+      reservations,
     };
   } catch(e){ console.error("Firebase load error:",e); return INIT; }
 }
