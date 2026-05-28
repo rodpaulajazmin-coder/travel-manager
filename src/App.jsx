@@ -245,7 +245,7 @@ function printVoucherAereo(res,settings,providers){
 <div class="voucher">
   <div class="hdr">
     <div style="display:flex;align-items:center;gap:12px;">${logoHtml}<div><div style="font-size:17px;font-weight:800;">${settings.agencyName}</div><div style="font-size:11px;opacity:.85;text-transform:uppercase;letter-spacing:1px;">Voucher Aéreo</div></div></div>
-    <div style="text-align:right;font-size:12px;opacity:.9;"><div>File N° <strong>${res.fileNumber}</strong></div><div>Emitido: ${fmtDate(today())}</div>${settings.emergencyPhone?`<div style="margin-top:4px;">Emergencias: ${settings.emergencyPhone}</div>`:''}</div>
+    <div style="text-align:right;font-size:12px;opacity:.9;"><div>File N° <strong>${res.fileNumber}</strong></div>${settings.emergencyPhone?`<div style="margin-top:4px;">Emergencias: ${settings.emergencyPhone}</div>`:''}</div>
   </div>
   <div class="content">
     <div style="margin-bottom:18px;"><div class="sec-title">Pasajeros</div>${passengerBlock}</div>
@@ -306,7 +306,7 @@ function printVoucherTerrestre(res,settings,providers,svcIndex){
 <div class="voucher">
   <div class="hdr">
     <div style="display:flex;align-items:center;gap:12px;">${logoHtml}<div><div style="font-size:17px;font-weight:800;">${settings.agencyName}</div><div style="font-size:11px;opacity:.85;text-transform:uppercase;letter-spacing:1px;">Voucher Terrestre</div></div></div>
-    <div style="text-align:right;font-size:12px;opacity:.9;"><div>File N° <strong>${res.fileNumber}</strong></div><div>Emitido: ${fmtDate(today())}</div>${settings.emergencyPhone?`<div style="margin-top:4px;">Emergencias: ${settings.emergencyPhone}</div>`:''}</div>
+    <div style="text-align:right;font-size:12px;opacity:.9;"><div>File N° <strong>${res.fileNumber}</strong></div>${settings.emergencyPhone?`<div style="margin-top:4px;">Emergencias: ${settings.emergencyPhone}</div>`:''}</div>
   </div>
   <div class="content">
     <div style="margin-bottom:18px;"><div class="sec-title">Pasajeros</div>${passengerBlock}</div>
