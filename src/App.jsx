@@ -1075,12 +1075,12 @@ function SettingsPage({data,update}){
 
 
 // ── PRINT: COTIZACIÓN ─────────────────────────────
-function printQuotation(res, settings, depositPct, validDays, policies, serviceDesc){
+function printQuotation(res, settings, depositPct, validDays, policies, serviceDesc, priceBasis){
   const color = settings.voucherColor||'#1a3a5c';
   const cur = settings.currency||'ARS';
   const logoHtml = settings.logo
-    ? `<img src="${settings.logo}" style="height:42px;max-width:130px;object-fit:contain;" alt="Logo"/>`
-    : `<div style="font-size:15px;font-weight:700;color:#1a1a1a;">${settings.agencyName}</div>`;
+    ? `<img src="${settings.logo}" style="height:60px;max-width:180px;object-fit:contain;" alt="Logo"/>`
+    : `<div style="font-size:18px;font-weight:700;color:#1a1a1a;">${settings.agencyName}</div>`;
 
   const vuelos = res.services.filter(s=>s.type==='vuelo').sort((a,b)=>{
     const da=(a.departureDate||"")+(a.departureTime||"");
@@ -1171,12 +1171,8 @@ ul{padding-left:15px;font-size:11px;color:#666;line-height:2;}
 <div class="wrap">
 
   <div class="header">
-    <div style="display:flex;align-items:center;gap:10px;">
+    <div style="display:flex;align-items:center;">
       ${logoHtml}
-      <div>
-        <div style="font-size:12px;font-weight:600;">${settings.agencyName}</div>
-        <div style="font-size:10px;color:#999;">Agencia de Viajes</div>
-      </div>
     </div>
     <div style="text-align:right;">
       <div class="destino">${(res.destination||'').toUpperCase()}</div>
@@ -1217,7 +1213,7 @@ ul{padding-left:15px;font-size:11px;color:#666;line-height:2;}
 
   <div class="sec">
     <div class="price-box">
-      <div style="font-size:11px;opacity:.8;">Precio total por persona</div>
+      <div style="font-size:11px;opacity:.8;">Precio ${priceBasis||'por persona'}</div>
       <div style="font-size:20px;font-weight:700;">${cur==='USD'?'US$':cur==='EUR'?'€':'$'} ${Number(res.salePrice||0).toLocaleString('es-AR',{minimumFractionDigits:2})}</div>
     </div>
     <div class="plazos">
@@ -1381,6 +1377,7 @@ function QuotationsPage({data, update}){
 function PrintQuotationModal({res, settings, onClose}){
   const [depositPct, setDepositPct] = useState(30);
   const [validDays, setValidDays] = useState(5);
+  const [priceBasis, setPriceBasis] = useState('en base doble');
   const [serviceDesc, setServiceDesc] = useState(res.description||"");
   const [policies, setPolicies] = useState(
     settings.quotationPolicies||
@@ -1394,7 +1391,7 @@ function PrintQuotationModal({res, settings, onClose}){
     <Modal title={`Imprimir Cotización — File #${res.fileNumber}`} onClose={onClose} width={560}
       footer={<>
         <Btn variant="secondary" onClick={onClose}>Cancelar</Btn>
-        <Btn onClick={()=>{printQuotation(res,settings,depositPct,validDays,policies,serviceDesc);onClose();}}>
+        <Btn onClick={()=>{printQuotation(res,settings,depositPct,validDays,policies,serviceDesc,priceBasis);onClose();}}>
           <Printer size={14}/>Imprimir cotización
         </Btn>
       </>}>
@@ -1409,6 +1406,15 @@ function PrintQuotationModal({res, settings, onClose}){
         <Field label="Validez (días hábiles)">
           <input type="number" value={validDays} onChange={e=>setValidDays(+e.target.value)}
             style={{...S.input}} min={1}/>
+        </Field>
+        <Field label="Base de precio" col={2} style={{gridColumn:'span 2'}}>
+          <select value={priceBasis} onChange={e=>setPriceBasis(e.target.value)} style={{...S.input,appearance:'auto'}}>
+            <option value='por persona'>Por persona</option>
+            <option value='en base doble'>En base doble</option>
+            <option value='en base triple'>En base triple</option>
+            <option value='en base cuádruple'>En base cuádruple</option>
+            <option value='por paquete'>Por paquete completo</option>
+          </select>
         </Field>
       </div>
       <div style={{background:"#F8FAFC",borderRadius:8,padding:12,margin:"14px 0",display:"flex",justifyContent:"space-between",fontSize:12}}>
