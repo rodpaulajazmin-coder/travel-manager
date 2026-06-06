@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
-import { LayoutDashboard, CalendarDays, Users, Building2, TrendingUp, FileText, Settings, Plus, Pencil, Trash2, Printer, Eye, X, Check, AlertCircle, Search, Download, CreditCard, Plane, Hotel, Bus, Map, Shield, Ship, Package, FileCheck, Upload, BarChart2 } from "lucide-react";
+import { LayoutDashboard, CalendarDays, Users, Building2, TrendingUp, FileText, Settings, Plus, Pencil, Trash2, Printer, Eye, X, Check, AlertCircle, Search, Download, CreditCard, Plane, Hotel, Bus, Map, Shield, Ship, Package, FileCheck, Upload, BarChart2, ClipboardList, ArrowRight } from "lucide-react";
 
 const genId = () => `${Date.now()}_${Math.random().toString(36).substr(2,5)}`;
 const fmt$ = (n, currency) => {
@@ -361,7 +361,7 @@ const Divider=({label})=>(<div style={{display:"flex",alignItems:"center",gap:8,
 const Toggle=({label,checked,onChange,desc})=>(<div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",padding:"10px 0",borderBottom:"1px solid #F1F5F9"}}><div><div style={{fontSize:13,fontWeight:600,color:"#1E293B"}}>{label}</div>{desc&&<div style={{fontSize:11,color:"#94A3B8",marginTop:2}}>{desc}</div>}</div><div onClick={()=>onChange(!checked)} style={{width:42,height:24,borderRadius:12,background:checked?"#2563EB":"#CBD5E1",cursor:"pointer",position:"relative",flexShrink:0,transition:"background .2s",marginLeft:12}}><div style={{position:"absolute",top:3,left:checked?19:3,width:18,height:18,borderRadius:9,background:"white",boxShadow:"0 1px 3px rgba(0,0,0,.2)",transition:"left .2s"}}/></div></div>);
 
 // ── SIDEBAR ───────────────────────────────────────
-const NAV=[{id:"dashboard",Icon:LayoutDashboard,l:"Dashboard"},{id:"reservations",Icon:CalendarDays,l:"Reservas"},{id:"clients",Icon:Users,l:"Clientes"},{id:"providers",Icon:Building2,l:"Proveedores"},{id:"commissions",Icon:TrendingUp,l:"Comisiones"},{id:"reports",Icon:BarChart2,l:"Reportes"},{id:"settings",Icon:Settings,l:"Configuración"}];
+const NAV=[{id:"dashboard",Icon:LayoutDashboard,l:"Dashboard"},{id:"quotations",Icon:ClipboardList,l:"Cotizaciones"},{id:"reservations",Icon:CalendarDays,l:"Reservas"},{id:"clients",Icon:Users,l:"Clientes"},{id:"providers",Icon:Building2,l:"Proveedores"},{id:"commissions",Icon:TrendingUp,l:"Comisiones"},{id:"reports",Icon:BarChart2,l:"Reportes"},{id:"settings",Icon:Settings,l:"Configuración"}];
 function Sidebar({section,setSection,settings}){
   return(<aside style={{width:210,background:"#0F172A",display:"flex",flexDirection:"column",flexShrink:0,userSelect:"none"}}>
     <div style={{padding:"18px 16px",borderBottom:"1px solid #1E293B",display:"flex",alignItems:"center",gap:10}}>
@@ -831,7 +831,7 @@ function ReservationsPage({data,update}){
   const [modal,setModal]=useState(null);
   const [viewModal,setViewModal]=useState(null);
   const cur=settings.currency||'ARS';
-  const filtered=useMemo(()=>reservations.filter(r=>{const q=search.toLowerCase();const mQ=!q||(r.destination||"").toLowerCase().includes(q)||String(r.fileNumber).includes(q)||r.passengers.some(p=>p.name.toLowerCase().includes(q));return mQ&&(filter==="all"||r.status===filter);}).sort((a,b)=>b.createdAt?.localeCompare(a.createdAt||"")||0),[reservations,search,filter]);
+  const filtered=useMemo(()=>reservations.filter(r=>{const q=search.toLowerCase();const mQ=!q||(r.destination||"").toLowerCase().includes(q)||String(r.fileNumber).includes(q)||r.passengers.some(p=>p.name.toLowerCase().includes(q));return mQ&&r.status!=="cotizacion"&&(filter==="all"||r.status===filter);}).sort((a,b)=>b.createdAt?.localeCompare(a.createdAt||"")||0),[reservations,search,filter]);
   const saveRes=r=>{update(d=>{const idx=d.reservations.findIndex(x=>x.id===r.id);const updated=idx>=0?d.reservations.map(x=>x.id===r.id?r:x):[...d.reservations,r];return{...d,reservations:updated,nextFile:Math.max(d.nextFile,Number(r.fileNumber.replace(/^0+/,""))+1)};});setModal(null);};
   const terr=r=>r.services.filter(s=>s.type!=='vuelo');
   return(<div style={{padding:28,overflowY:"auto",flex:1}}>
@@ -839,7 +839,7 @@ function ReservationsPage({data,update}){
       <div><h1 style={{margin:0,fontSize:22,fontWeight:800,color:"#0F172A"}}>Reservas</h1><p style={{margin:"4px 0 0",fontSize:13,color:"#64748B"}}>{filtered.length} reservas</p></div>
       <div style={{display:"flex",gap:8}}><Btn variant="success" onClick={()=>exportReservations(reservations,settings)}><Download size={14}/>Excel</Btn><Btn onClick={()=>setModal({isNew:true,data:newRes(data.nextFile,settings.defaultCommission)})}><Plus size={14}/>Nueva reserva</Btn></div>
     </div>
-    <Card style={{marginBottom:16}}><div style={{display:"flex",gap:10}}><div style={{flex:1,position:"relative"}}><Search size={14} style={{position:"absolute",left:10,top:"50%",transform:"translateY(-50%)",color:"#94A3B8"}}/><input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Buscar por file, destino o pasajero…" style={{...S.input,paddingLeft:32}}/></div><select value={filter} onChange={e=>setFilter(e.target.value)} style={{...S.input,width:"auto",appearance:"auto"}}><option value="all">Todos los estados</option>{Object.entries(STATUS).map(([v,s])=><option key={v} value={v}>{s.label}</option>)}</select></div></Card>
+    <Card style={{marginBottom:16}}><div style={{display:"flex",gap:10}}><div style={{flex:1,position:"relative"}}><Search size={14} style={{position:"absolute",left:10,top:"50%",transform:"translateY(-50%)",color:"#94A3B8"}}/><input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Buscar por file, destino o pasajero…" style={{...S.input,paddingLeft:32}}/></div><select value={filter} onChange={e=>setFilter(e.target.value)} style={{...S.input,width:"auto",appearance:"auto"}}><option value="all">Todos los estados</option>{Object.entries(STATUS).filter(([v])=>v!=="cotizacion").map(([v,s])=><option key={v} value={v}>{s.label}</option>)}</select></div></Card>
     {filtered.length===0?<EmptyState icon={CalendarDays} title="Sin reservas" sub="Creá tu primera reserva." action={<Btn onClick={()=>setModal({isNew:true,data:newRes(data.nextFile,settings.defaultCommission)})}><Plus size={14}/>Nueva reserva</Btn>}/>
       :<Card style={{padding:0}}><table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
         <thead><tr style={{background:"#F8FAFC",borderBottom:"1px solid #E2E8F0"}}>{["File","Destino","Pasajeros","Salida","Estado","Venta","Cobrado","Saldo","Acciones"].map(h=>(<th key={h} style={{padding:"10px 12px",textAlign:"left",fontWeight:700,fontSize:11,color:"#64748B",textTransform:"uppercase"}}>{h}</th>))}</tr></thead>
@@ -1035,6 +1035,7 @@ function SettingsPage({data,update}){
         <Field label="Color de recibos"><div style={{display:"flex",gap:8,alignItems:"center"}}><input type="color" value={s.receiptColor||"#1a56db"} onChange={e=>setS(p=>({...p,receiptColor:e.target.value}))} style={{width:40,height:36,border:"1px solid #E2E8F0",borderRadius:6,cursor:"pointer",padding:2}}/><span style={{fontSize:12,color:"#64748B"}}>Totales en recibos</span></div></Field>
         <Txta label="Nota en encabezado de recibos" value={s.headerNote} onChange={v=>setS(p=>({...p,headerNote:v}))} rows={2} placeholder="Políticas de cancelación..." col={2} style={{gridColumn:"span 2"}}/>
         <Inp label="Texto del pie de página" value={s.footerText} onChange={v=>setS(p=>({...p,footerText:v}))} placeholder="Gracias por elegirnos." col={2} style={{gridColumn:"span 2"}}/>
+        <Txta label="Políticas por defecto (cotizaciones)" value={s.quotationPolicies} onChange={v=>setS(p=>({...p,quotationPolicies:v}))} rows={4} placeholder="• Precios sujetos a disponibilidad..." col={2} style={{gridColumn:"span 2"}}/>
       </div>
     </Card>
     <Card style={{marginBottom:16}}>
@@ -1072,6 +1073,359 @@ function SettingsPage({data,update}){
   </div>);
 }
 
+
+// ── PRINT: COTIZACIÓN ─────────────────────────────
+function printQuotation(res, settings, depositPct, validDays, policies, serviceDesc){
+  const color = settings.voucherColor||'#1a3a5c';
+  const cur = settings.currency||'ARS';
+  const logoHtml = settings.logo
+    ? `<img src="${settings.logo}" style="height:42px;max-width:130px;object-fit:contain;" alt="Logo"/>`
+    : `<div style="font-size:15px;font-weight:700;color:#1a1a1a;">${settings.agencyName}</div>`;
+
+  const vuelos = res.services.filter(s=>s.type==='vuelo').sort((a,b)=>{
+    const da=(a.departureDate||"")+(a.departureTime||"");
+    const db=(b.departureDate||"")+(b.departureTime||"");
+    return da.localeCompare(db);
+  });
+  const hoteles = res.services.filter(s=>s.type==='hotel').sort((a,b)=>(a.checkIn||"").localeCompare(b.checkIn||""));
+  const otros = res.services.filter(s=>s.type!=='vuelo'&&s.type!=='hotel');
+
+  const passengerBlock = res.passengers.map(p=>
+    `<div style="display:flex;gap:24px;padding:5px 0;border-bottom:1px solid #f0f0f0;font-size:11px;">
+      <span style="font-weight:600;min-width:180px;">${p.name}</span>
+      ${p.dni?`<span style="color:#999;">DNI: ${p.dni}</span>`:''}
+    </div>`
+  ).join('');
+
+  const vuelosBlock = vuelos.map(s=>`
+    <div style="margin-bottom:10px;">
+      <div style="display:flex;justify-content:space-between;margin-bottom:4px;">
+        <span style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:#888;">${s.flightType||'Vuelo'} · ${s.departureDate?new Date(s.departureDate+'T12:00:00').toLocaleDateString('es-AR'):''}</span>
+        <span style="font-size:10px;font-weight:600;color:#555;">${s.airline||''}</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;">
+        <div style="min-width:80px;">
+          <span style="font-size:13px;font-weight:700;color:#1a1a1a;">${s.departureTime||''}</span>
+          <span style="font-size:11px;color:#555;margin-left:4px;">· ${s.origin||''} (${s.originCode||'?'})</span>
+        </div>
+        <div style="flex:1;text-align:center;font-size:9px;color:#bbb;font-style:italic;">${s.stops||'Directo'}${s.duration?' · '+s.duration:''}</div>
+        <div style="min-width:80px;text-align:right;">
+          <span style="font-size:13px;font-weight:700;color:#1a1a1a;">${s.arrivalTime||''}</span>
+          <span style="font-size:11px;color:#555;margin-left:4px;">· ${s.destination||''} (${s.destinationCode||'?'})</span>
+        </div>
+      </div>
+      ${s.baggage?`<div style="margin-top:5px;"><span style="background:#f2f2f0;color:#666;font-size:9px;padding:2px 8px;border-radius:20px;">${s.baggage}</span></div>`:''}
+    </div>
+    <div style="height:1px;background:#f0f0ee;margin:8px 0;"></div>
+  `).join('');
+
+  const hotelesBlock = hoteles.map(s=>`
+    <div style="margin-bottom:10px;">
+      <div style="font-size:13px;font-weight:700;color:#1a1a1a;margin-bottom:3px;">${s._extractedProviderName||s.description||'Hotel'}</div>
+      <div style="font-size:11px;color:#888;margin-bottom:6px;">${s.regimen||''}${s.roomType?' | '+s.roomType:''}</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:3px;font-size:11px;color:#666;">
+        ${s.checkIn?`<div>Check-in: <strong>${new Date(s.checkIn+'T12:00:00').toLocaleDateString('es-AR')}</strong></div>`:''}
+        ${s.checkOut?`<div>Check-out: <strong>${new Date(s.checkOut+'T12:00:00').toLocaleDateString('es-AR')}</strong></div>`:''}
+        ${s.nights?`<div>Noches: <strong>${s.nights}</strong></div>`:''}
+        ${s.rooms?`<div>Habitaciones: <strong>${s.rooms}</strong></div>`:''}
+      </div>
+    </div>
+    <div style="height:1px;background:#f0f0ee;margin:8px 0;"></div>
+  `).join('');
+
+  const otrosBlock = otros.map(s=>`
+    <div style="margin-bottom:8px;font-size:12px;">
+      <span style="font-weight:600;color:#1a1a1a;">${s.type.charAt(0).toUpperCase()+s.type.slice(1)}</span>
+      ${s.description?` — ${s.description}`:''}
+      ${s.serviceDate?` · ${new Date(s.serviceDate+'T12:00:00').toLocaleDateString('es-AR')}`:''}
+    </div>
+  `).join('');
+
+  const depositAmt = Math.round((res.salePrice||0) * (depositPct/100) * 100) / 100;
+  const balanceAmt = (res.salePrice||0) - depositAmt;
+  const validDate = validDays ? (() => { const d=new Date(); d.setDate(d.getDate()+validDays); return d.toLocaleDateString('es-AR'); })() : '';
+
+  const html = `<!DOCTYPE html><html><head><meta charset="utf-8">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<title>Cotización #${res.fileNumber}</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;}
+body{font-family:'Inter',sans-serif;color:#1a1a1a;font-size:12px;background:white;}
+.wrap{max-width:700px;margin:0 auto;border:1px solid #e2e2e2;border-radius:12px;overflow:hidden;}
+.header{padding:1.2rem 1.8rem;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #e8e8e8;}
+.destino{font-size:24px;font-weight:700;letter-spacing:-0.5px;}
+.sec{padding:1rem 1.8rem;border-bottom:1px solid #e8e8e8;}
+.sec-title{display:flex;align-items:center;gap:7px;margin-bottom:12px;}
+.sec-title-bar{width:3px;height:14px;background:${color};border-radius:2px;}
+.sec-title-text{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:1.2px;color:${color};}
+.passengers-bg{background:#fafaf8;}
+.price-box{background:${color};color:white;border-radius:8px;padding:12px 18px;display:flex;justify-content:space-between;align-items:center;margin-bottom:9px;}
+.plazos{background:#f9f9f7;border-radius:8px;padding:11px 15px;}
+.plazo-row{display:flex;justify-content:space-between;padding:5px 0;font-size:11px;}
+.plazo-row+.plazo-row{border-top:1px solid #eee;}
+.politicas{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:1.2px;color:#444;margin-bottom:8px;}
+ul{padding-left:15px;font-size:11px;color:#666;line-height:2;}
+.footer{background:${color};padding:.8rem 1.8rem;text-align:center;font-size:10px;color:rgba(255,255,255,.7);}
+@media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact;}.wrap{border:none;border-radius:0;}}
+</style></head><body>
+<div class="wrap">
+
+  <div class="header">
+    <div style="display:flex;align-items:center;gap:10px;">
+      ${logoHtml}
+      <div>
+        <div style="font-size:12px;font-weight:600;">${settings.agencyName}</div>
+        <div style="font-size:10px;color:#999;">Agencia de Viajes</div>
+      </div>
+    </div>
+    <div style="text-align:right;">
+      <div class="destino">${(res.destination||'').toUpperCase()}</div>
+      <div style="font-size:11px;color:#666;">Salida ${res.departureDate?new Date(res.departureDate+'T12:00:00').toLocaleDateString('es-AR'):''} ${res.departureDate&&res.returnDate?'| '+Math.ceil((new Date(res.returnDate)-new Date(res.departureDate))/86400000)+' Noches':''}</div>
+      ${validDate?`<div style="font-size:10px;color:#aaa;margin-top:2px;">Válida hasta: ${validDate}</div>`:''}
+    </div>
+  </div>
+
+  ${res.passengers.length>0?`
+  <div class="sec passengers-bg">
+    <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:1.2px;color:#999;margin-bottom:6px;">Pasajeros</div>
+    ${passengerBlock}
+  </div>`:''}
+
+  ${vuelos.length>0?`
+  <div class="sec">
+    <div class="sec-title"><div class="sec-title-bar"></div><div class="sec-title-text">Itinerario de vuelos</div></div>
+    ${vuelosBlock}
+  </div>`:''}
+
+  ${hoteles.length>0?`
+  <div class="sec">
+    <div class="sec-title"><div class="sec-title-bar"></div><div class="sec-title-text">Alojamiento seleccionado</div></div>
+    ${hotelesBlock}
+  </div>`:''}
+
+  ${otros.length>0?`
+  <div class="sec">
+    <div class="sec-title"><div class="sec-title-bar"></div><div class="sec-title-text">Servicios adicionales</div></div>
+    ${otrosBlock}
+  </div>`:''}
+
+  ${serviceDesc?`
+  <div class="sec">
+    <div class="sec-title"><div class="sec-title-bar"></div><div class="sec-title-text">Servicios incluidos</div></div>
+    <div style="font-size:11px;color:#555;line-height:1.8;">${serviceDesc}</div>
+  </div>`:''}
+
+  <div class="sec">
+    <div class="price-box">
+      <div style="font-size:11px;opacity:.8;">Precio total por persona</div>
+      <div style="font-size:20px;font-weight:700;">${cur==='USD'?'US$':cur==='EUR'?'€':'$'} ${Number(res.salePrice||0).toLocaleString('es-AR',{minimumFractionDigits:2})}</div>
+    </div>
+    <div class="plazos">
+      <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:1.2px;color:#999;margin-bottom:8px;">Plazos de pago</div>
+      <div class="plazo-row">
+        <span style="color:#666;">Seña al confirmar (${depositPct}%)</span>
+        <span style="font-weight:700;">${cur==='USD'?'US$':cur==='EUR'?'€':'$'} ${depositAmt.toLocaleString('es-AR',{minimumFractionDigits:2})}</span>
+      </div>
+      <div class="plazo-row">
+        <span style="color:#666;">Saldo hasta 45 días antes de la salida</span>
+        <span style="font-weight:700;">${cur==='USD'?'US$':cur==='EUR'?'€':'$'} ${balanceAmt.toLocaleString('es-AR',{minimumFractionDigits:2})}</span>
+      </div>
+    </div>
+  </div>
+
+  ${policies?`
+  <div class="sec">
+    <div class="politicas">Políticas y observaciones</div>
+    <ul>${policies.split('\n').filter(l=>l.trim()).map(l=>`<li>${l.replace(/^[•\-\*]\s*/,'')}</li>`).join('')}</ul>
+  </div>`:''}
+
+  <div class="footer">
+    ${settings.agencyName}${settings.phone?' · '+settings.phone:''}${settings.email?' · '+settings.email:''}${settings.footerText?' · '+settings.footerText:''}
+  </div>
+</div>
+<script>window.print();window.onafterprint=()=>window.close();<\/script>
+</body></html>`;
+  const w=window.open("","_blank","width=780,height=950");
+  w.document.write(html);
+  w.document.close();
+}
+
+// ── QUOTATIONS PAGE ───────────────────────────────
+function QuotationsPage({data, update}){
+  const {reservations, providers, settings} = data;
+  const [search, setSearch] = useState("");
+  const [modal, setModal] = useState(null);
+  const [printModal, setPrintModal] = useState(null);
+  const cur = settings.currency||'ARS';
+
+  // Solo cotizaciones (status === cotizacion)
+  const quotations = useMemo(()=>
+    reservations
+      .filter(r=>r.status==="cotizacion")
+      .filter(r=>{
+        const q=search.toLowerCase();
+        return !q||(r.destination||"").toLowerCase().includes(q)||
+          String(r.fileNumber).includes(q)||
+          r.passengers.some(p=>p.name.toLowerCase().includes(q));
+      })
+      .sort((a,b)=>b.createdAt?.localeCompare(a.createdAt||"")||0),
+    [reservations, search]
+  );
+
+  const saveQuotation = r => {
+    update(d=>{
+      const idx=d.reservations.findIndex(x=>x.id===r.id);
+      const updated=idx>=0?d.reservations.map(x=>x.id===r.id?r:x):[...d.reservations,r];
+      return{...d,reservations:updated,nextFile:Math.max(d.nextFile,Number(r.fileNumber.replace(/^0+/,""))+1)};
+    });
+    setModal(null);
+  };
+
+  const confirmQuotation = (r) => {
+    if(!window.confirm(`¿Confirmar la cotización #${r.fileNumber} y pasarla a Reservas?`)) return;
+    update(d=>({...d,reservations:d.reservations.map(x=>x.id===r.id?{...x,status:"confirmada"}:x)}));
+  };
+
+  const deleteQuotation = (id) => {
+    if(!window.confirm("¿Eliminar esta cotización?")) return;
+    update(d=>({...d,reservations:d.reservations.filter(x=>x.id!==id)}));
+  };
+
+  return(
+    <div style={{padding:28,overflowY:"auto",flex:1}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}>
+        <div>
+          <h1 style={{margin:0,fontSize:22,fontWeight:800,color:"#0F172A"}}>Cotizaciones</h1>
+          <p style={{margin:"4px 0 0",fontSize:13,color:"#64748B"}}>{quotations.length} cotizaciones pendientes</p>
+        </div>
+        <Btn onClick={()=>setModal({isNew:true,data:newRes(data.nextFile,settings.defaultCommission)})}>
+          <Plus size={14}/>Nueva cotización
+        </Btn>
+      </div>
+
+      <Card style={{marginBottom:16}}>
+        <div style={{position:"relative"}}>
+          <Search size={14} style={{position:"absolute",left:10,top:"50%",transform:"translateY(-50%)",color:"#94A3B8"}}/>
+          <input value={search} onChange={e=>setSearch(e.target.value)}
+            placeholder="Buscar por destino, file o pasajero…"
+            style={{...S.input,paddingLeft:32}}/>
+        </div>
+      </Card>
+
+      {quotations.length===0
+        ? <EmptyState icon={ClipboardList} title="Sin cotizaciones"
+            sub="Creá una nueva cotización para un cliente."
+            action={<Btn onClick={()=>setModal({isNew:true,data:newRes(data.nextFile,settings.defaultCommission)})}><Plus size={14}/>Nueva cotización</Btn>}/>
+        : <Card style={{padding:0}}>
+            <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
+              <thead>
+                <tr style={{background:"#F8FAFC",borderBottom:"1px solid #E2E8F0"}}>
+                  {["File","Destino","Pasajeros","Salida","Precio","Acciones"].map(h=>(
+                    <th key={h} style={{padding:"10px 12px",textAlign:"left",fontWeight:700,fontSize:11,color:"#64748B",textTransform:"uppercase"}}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {quotations.map(r=>(
+                  <tr key={r.id} style={{borderBottom:"1px solid #F1F5F9"}}
+                    onMouseEnter={e=>e.currentTarget.style.background="#F8FAFC"}
+                    onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+                    <td style={{padding:"10px 12px",fontWeight:700,color:"#6366F1"}}>#{r.fileNumber}</td>
+                    <td style={{padding:"10px 12px",fontWeight:500}}>{r.destination||"—"}</td>
+                    <td style={{padding:"10px 12px",color:"#64748B",fontSize:12}}>
+                      {r.passengers.map(p=>p.name).filter(Boolean).join(", ")||"—"}
+                    </td>
+                    <td style={{padding:"10px 12px",color:"#64748B"}}>{r.departureDate?new Date(r.departureDate+'T12:00:00').toLocaleDateString('es-AR'):"—"}</td>
+                    <td style={{padding:"10px 12px",fontWeight:600}}>{fmt$(r.salePrice,cur)}</td>
+                    <td style={{padding:"10px 12px"}}>
+                      <div style={{display:"flex",gap:3,flexWrap:"wrap"}}>
+                        <button title="Editar" onClick={()=>setModal({isNew:false,data:r})} style={S.ghostBtn}><Pencil size={13}/></button>
+                        <button title="Imprimir cotización" onClick={()=>setPrintModal(r)}
+                          style={{...S.ghostBtn,color:"#6366F1",borderColor:"#C7D2FE"}}><Printer size={13}/></button>
+                        <button title="Confirmar → pasar a Reservas"
+                          onClick={()=>confirmQuotation(r)}
+                          style={{...S.ghostBtn,color:"#059669",borderColor:"#A7F3D0",fontWeight:600}}>
+                          <Check size={13}/>Confirmar
+                        </button>
+                        <button title="Eliminar" onClick={()=>deleteQuotation(r.id)}
+                          style={{...S.ghostBtn,color:"#EF4444",borderColor:"#FCA5A5"}}><Trash2 size={13}/></button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </Card>
+      }
+
+      {modal&&(
+        <ReservationModal
+          initial={modal.isNew?null:modal.data}
+          providers={providers}
+          settings={settings}
+          onSave={saveQuotation}
+          onClose={()=>setModal(null)}/>
+      )}
+
+      {printModal&&(
+        <PrintQuotationModal
+          res={printModal}
+          settings={settings}
+          onClose={()=>setPrintModal(null)}/>
+      )}
+    </div>
+  );
+}
+
+// ── PRINT QUOTATION MODAL ─────────────────────────
+function PrintQuotationModal({res, settings, onClose}){
+  const [depositPct, setDepositPct] = useState(30);
+  const [validDays, setValidDays] = useState(5);
+  const [serviceDesc, setServiceDesc] = useState(res.description||"");
+  const [policies, setPolicies] = useState(
+    settings.quotationPolicies||
+    "• Precios sujetos a disponibilidad al momento de la reserva.\n• Se requiere pasaporte con vigencia mínima de 6 meses.\n• Asistencia al viajero recomendada (consultar opciones)."
+  );
+  const cur = settings.currency||'ARS';
+  const depositAmt = Math.round((res.salePrice||0)*(depositPct/100)*100)/100;
+  const balanceAmt = (res.salePrice||0) - depositAmt;
+
+  return(
+    <Modal title={`Imprimir Cotización — File #${res.fileNumber}`} onClose={onClose} width={560}
+      footer={<>
+        <Btn variant="secondary" onClick={onClose}>Cancelar</Btn>
+        <Btn onClick={()=>{printQuotation(res,settings,depositPct,validDays,policies,serviceDesc);onClose();}}>
+          <Printer size={14}/>Imprimir cotización
+        </Btn>
+      </>}>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14}}>
+        <Field label="% de seña">
+          <div style={{display:"flex",alignItems:"center",gap:8}}>
+            <input type="number" value={depositPct} onChange={e=>setDepositPct(Math.min(100,Math.max(0,+e.target.value)))}
+              style={{...S.input,width:80}} min={0} max={100}/>
+            <span style={{fontSize:12,color:"#64748B"}}>= {cur==='USD'?'US$':cur==='EUR'?'€':'$'}{depositAmt.toLocaleString('es-AR',{minimumFractionDigits:2})}</span>
+          </div>
+        </Field>
+        <Field label="Validez (días hábiles)">
+          <input type="number" value={validDays} onChange={e=>setValidDays(+e.target.value)}
+            style={{...S.input}} min={1}/>
+        </Field>
+      </div>
+      <div style={{background:"#F8FAFC",borderRadius:8,padding:12,margin:"14px 0",display:"flex",justifyContent:"space-between",fontSize:12}}>
+        <span style={{color:"#64748B"}}>Saldo (45 días antes)</span>
+        <span style={{fontWeight:700}}>{cur==='USD'?'US$':cur==='EUR'?'€':'$'}{balanceAmt.toLocaleString('es-AR',{minimumFractionDigits:2})}</span>
+      </div>
+      <Txta label="Servicios incluidos (descripción para el cliente)"
+        value={serviceDesc} onChange={setServiceDesc} rows={3}
+        placeholder="El paquete incluye vuelos, alojamiento y..."/>
+      <Txta label="Políticas y observaciones (una por línea)"
+        value={policies} onChange={setPolicies} rows={5}
+        placeholder="• Precios sujetos a disponibilidad..."/>
+    </Modal>
+  );
+}
+
+
 // ── APP ROOT ──────────────────────────────────────
 export default function App(){
   const [db,setDb]=useState(null);
@@ -1079,5 +1433,5 @@ export default function App(){
   useEffect(()=>{loadDB().then(setDb);},[]);
   const update=useCallback(fn=>{setDb(prev=>{const next=typeof fn==="function"?fn(prev):{...prev,...fn};saveDB(next);return next;});},[]);
   if(!db)return(<div style={{display:"flex",alignItems:"center",justifyContent:"center",height:"100vh",background:"#0F172A",color:"#94A3B8",fontFamily:"system-ui",gap:10,fontSize:14}}><span style={{width:20,height:20,border:"2px solid #3B82F6",borderTopColor:"transparent",borderRadius:"50%",display:"inline-block",animation:"spin 1s linear infinite"}}/> Cargando TravelManager… <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style></div>);
-  return(<div style={{display:"flex",height:"100vh",fontFamily:"'Segoe UI',system-ui,sans-serif",background:"#F1F5F9",overflow:"hidden"}}><Sidebar section={section} setSection={setSection} settings={db.settings}/><main style={{flex:1,overflow:"hidden",display:"flex",flexDirection:"column"}}>{section==="dashboard"&&<Dashboard data={db}/>}{section==="reservations"&&<ReservationsPage data={db} update={update}/>}{section==="clients"&&<ClientsPage data={db} update={update}/>}{section==="providers"&&<ProvidersPage data={db} update={update}/>}{section==="commissions"&&<CommissionsPage data={db}/>}{section==="reports"&&<ReportsPage data={db}/>}{section==="settings"&&<SettingsPage data={db} update={update}/>}</main></div>);
+  return(<div style={{display:"flex",height:"100vh",fontFamily:"'Segoe UI',system-ui,sans-serif",background:"#F1F5F9",overflow:"hidden"}}><Sidebar section={section} setSection={setSection} settings={db.settings}/><main style={{flex:1,overflow:"hidden",display:"flex",flexDirection:"column"}}>{section==="dashboard"&&<Dashboard data={db}/>}{section==="quotations"&&<QuotationsPage data={db} update={update}/>}{section==="reservations"&&<ReservationsPage data={db} update={update}/>}{section==="clients"&&<ClientsPage data={db} update={update}/>}{section==="providers"&&<ProvidersPage data={db} update={update}/>}{section==="commissions"&&<CommissionsPage data={db}/>}{section==="reports"&&<ReportsPage data={db}/>}{section==="settings"&&<SettingsPage data={db} update={update}/>}</main></div>);
 }
