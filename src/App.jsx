@@ -947,6 +947,7 @@ function CommissionsPage({data}){
   const [tab,setTab]=useState("summary");
   const cur=settings.currency||'ARS';
   const nc=reservations.filter(r=>r.status!=="cancelada"&&r.status!=="cotizacion");
+  const totalSale=sum(nc.map(r=>r.salePrice||0));
   const totalCost=sum(nc.map(r=>sum(r.services.map(s=>s.costPrice||0))));
   const totalComm=totalSale-totalCost;
   const totalReceived=sum(nc.map(r=>paidSum(r.paymentsReceived)));
