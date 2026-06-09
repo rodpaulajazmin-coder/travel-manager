@@ -837,7 +837,8 @@ function ReservationsPage({data,update}){
   const getNextFile = () => {
     const maxFile = data.reservations.reduce((max,x)=>Math.max(max,Number(x.fileNumber)||0),0);
     return String(maxFile+1).padStart(5,"0");
-  };update(d=>{const isNew=d.reservations.findIndex(x=>x.id===r.id)<0;const updated=isNew?[...d.reservations,r]:d.reservations.map(x=>x.id===r.id?r:x);const maxFile=updated.reduce((max,x)=>Math.max(max,Number(x.fileNumber)||0),0);return{...d,reservations:updated,nextFile:maxFile+1};});setModal(null);};
+  };
+  const saveRes=r=>{update(d=>{const isNew=d.reservations.findIndex(x=>x.id===r.id)<0;const updated=isNew?[...d.reservations,r]:d.reservations.map(x=>x.id===r.id?r:x);const maxFile=updated.reduce((max,x)=>Math.max(max,Number(x.fileNumber)||0),0);return{...d,reservations:updated,nextFile:maxFile+1};});setModal(null);};
   const terr=r=>r.services.filter(s=>s.type!=='vuelo');
   return(<div style={{padding:28,overflowY:"auto",flex:1}}>
     <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}>
@@ -865,7 +866,7 @@ function ReservationsPage({data,update}){
             {t.length===1&&<button title={`Voucher: ${t[0].description||t[0].type}`} onClick={()=>printVoucherTerrestre(r,settings,providers)} style={{...S.ghostBtn,color:"#059669",borderColor:"#A7F3D0"}}><Hotel size={13}/></button>}
             {t.length>1&&t.map((s,i)=>(<button key={s.id} title={`Voucher ${i+1}: ${s.description||s.type}`} onClick={()=>printVoucherTerrestre(r,settings,providers,i)} style={{...S.ghostBtn,color:"#059669",borderColor:"#A7F3D0"}}><Hotel size={13}/>{i+1}</button>))}
             <button title="Recibo" onClick={()=>printReceipt(r,settings,providers)} style={S.ghostBtn}><Printer size={13}/></button>
-            <button title="Eliminar" onClick={()=>{if(window.confirm("¿Mover esta reserva a eliminados?"))update(d=>({...d,reservations:d.reservations.filter(x=>x.id!==r.id),trash:[...( d.trash||[]),{...r,deletedAt:today()}]}))}} style={{...S.ghostBtn,color:"#EF4444",borderColor:"#FCA5A5"}}><Trash2 size={13}/></button>
+            <button title="Eliminar" onClick={()=>{ if(!window.confirm("¿Mover esta reserva a eliminados?")) return; update(d=>({...d,reservations:d.reservations.filter(x=>x.id!==r.id),trash:[...(d.trash||[]),{...r,deletedAt:today()}]})); }} style={{...S.ghostBtn,color:"#EF4444",borderColor:"#FCA5A5"}}><Trash2 size={13}/></button>
           </div></td>
         </tr>);})}</tbody>
       </table></Card>}
@@ -1525,7 +1526,6 @@ function TrashPage({data, update}){
     </div>
   );
 }
-
 // ── APP ROOT ──────────────────────────────────────
 export default function App(){
   const [db,setDb]=useState(null);
