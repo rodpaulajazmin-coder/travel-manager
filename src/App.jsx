@@ -79,6 +79,7 @@ async function loadDB(){
       clients,
       providers,
       reservations,
+      trash: data.trash ? Object.values(data.trash).filter(Boolean) : [],
     };
   } catch(e){ console.error("Firebase load error:",e); return INIT; }
 }
@@ -91,6 +92,7 @@ async function saveDB(d){
       clients: toObj(d.clients||[]),
       providers: toObj(d.providers||[]),
       reservations: toObj(d.reservations||[]),
+      trash: toObj(d.trash||[]),
     };
     await fetch(`${FB_URL}/travelmanager.json`,{
       method:"PUT",
@@ -361,7 +363,7 @@ const Divider=({label})=>(<div style={{display:"flex",alignItems:"center",gap:8,
 const Toggle=({label,checked,onChange,desc})=>(<div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",padding:"10px 0",borderBottom:"1px solid #F1F5F9"}}><div><div style={{fontSize:13,fontWeight:600,color:"#1E293B"}}>{label}</div>{desc&&<div style={{fontSize:11,color:"#94A3B8",marginTop:2}}>{desc}</div>}</div><div onClick={()=>onChange(!checked)} style={{width:42,height:24,borderRadius:12,background:checked?"#2563EB":"#CBD5E1",cursor:"pointer",position:"relative",flexShrink:0,transition:"background .2s",marginLeft:12}}><div style={{position:"absolute",top:3,left:checked?19:3,width:18,height:18,borderRadius:9,background:"white",boxShadow:"0 1px 3px rgba(0,0,0,.2)",transition:"left .2s"}}/></div></div>);
 
 // ── SIDEBAR ───────────────────────────────────────
-const NAV=[{id:"dashboard",Icon:LayoutDashboard,l:"Dashboard"},{id:"quotations",Icon:ClipboardList,l:"Cotizaciones"},{id:"reservations",Icon:CalendarDays,l:"Reservas"},{id:"clients",Icon:Users,l:"Clientes"},{id:"providers",Icon:Building2,l:"Proveedores"},{id:"commissions",Icon:TrendingUp,l:"Comisiones"},{id:"reports",Icon:BarChart2,l:"Reportes"},{id:"settings",Icon:Settings,l:"Configuración"}];
+const NAV=[{id:"dashboard",Icon:LayoutDashboard,l:"Dashboard"},{id:"quotations",Icon:ClipboardList,l:"Cotizaciones"},{id:"reservations",Icon:CalendarDays,l:"Reservas"},{id:"clients",Icon:Users,l:"Clientes"},{id:"providers",Icon:Building2,l:"Proveedores"},{id:"commissions",Icon:TrendingUp,l:"Comisiones"},{id:"reports",Icon:BarChart2,l:"Reportes"},{id:"settings",Icon:Settings,l:"Configuración"},{id:"trash",Icon:Trash2,l:"Eliminados"}];
 function Sidebar({section,setSection,settings}){
   return(<aside style={{width:210,background:"#0F172A",display:"flex",flexDirection:"column",flexShrink:0,userSelect:"none"}}>
     <div style={{padding:"18px 16px",borderBottom:"1px solid #1E293B",display:"flex",alignItems:"center",gap:10}}>
@@ -832,15 +834,18 @@ function ReservationsPage({data,update}){
   const [viewModal,setViewModal]=useState(null);
   const cur=settings.currency||'ARS';
   const filtered=useMemo(()=>reservations.filter(r=>{const q=search.toLowerCase();const mQ=!q||(r.destination||"").toLowerCase().includes(q)||String(r.fileNumber).includes(q)||r.passengers.some(p=>p.name.toLowerCase().includes(q));return mQ&&r.status!=="cotizacion"&&(filter==="all"||r.status===filter);}).sort((a,b)=>b.createdAt?.localeCompare(a.createdAt||"")||0),[reservations,search,filter]);
-  const saveRes=r=>{update(d=>{const isNew=d.reservations.findIndex(x=>x.id===r.id)<0;const updated=isNew?[...d.reservations,r]:d.reservations.map(x=>x.id===r.id?r:x);const nextFile=isNew?d.nextFile+1:d.nextFile;return{...d,reservations:updated,nextFile};});setModal(null);};
+  const getNextFile = () => {
+    const maxFile = data.reservations.reduce((max,x)=>Math.max(max,Number(x.fileNumber)||0),0);
+    return String(maxFile+1).padStart(5,"0");
+  };update(d=>{const isNew=d.reservations.findIndex(x=>x.id===r.id)<0;const updated=isNew?[...d.reservations,r]:d.reservations.map(x=>x.id===r.id?r:x);const maxFile=updated.reduce((max,x)=>Math.max(max,Number(x.fileNumber)||0),0);return{...d,reservations:updated,nextFile:maxFile+1};});setModal(null);};
   const terr=r=>r.services.filter(s=>s.type!=='vuelo');
   return(<div style={{padding:28,overflowY:"auto",flex:1}}>
     <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}>
       <div><h1 style={{margin:0,fontSize:22,fontWeight:800,color:"#0F172A"}}>Reservas</h1><p style={{margin:"4px 0 0",fontSize:13,color:"#64748B"}}>{filtered.length} reservas</p></div>
-      <div style={{display:"flex",gap:8}}><Btn variant="success" onClick={()=>exportReservations(reservations,settings)}><Download size={14}/>Excel</Btn><Btn onClick={()=>setModal({isNew:true,data:newRes(data.nextFile,settings.defaultCommission,"confirmada")})}><Plus size={14}/>Nueva reserva</Btn></div>
+      <div style={{display:"flex",gap:8}}><Btn variant="success" onClick={()=>exportReservations(reservations,settings)}><Download size={14}/>Excel</Btn><Btn onClick={()=>setModal({isNew:true,data:newRes(getNextFile(),settings.defaultCommission,"confirmada")})}><Plus size={14}/>Nueva reserva</Btn></div>
     </div>
     <Card style={{marginBottom:16}}><div style={{display:"flex",gap:10}}><div style={{flex:1,position:"relative"}}><Search size={14} style={{position:"absolute",left:10,top:"50%",transform:"translateY(-50%)",color:"#94A3B8"}}/><input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Buscar por file, destino o pasajero…" style={{...S.input,paddingLeft:32}}/></div><select value={filter} onChange={e=>setFilter(e.target.value)} style={{...S.input,width:"auto",appearance:"auto"}}><option value="all">Todos los estados</option>{Object.entries(STATUS).filter(([v])=>v!=="cotizacion").map(([v,s])=><option key={v} value={v}>{s.label}</option>)}</select></div></Card>
-    {filtered.length===0?<EmptyState icon={CalendarDays} title="Sin reservas" sub="Creá tu primera reserva." action={<Btn onClick={()=>setModal({isNew:true,data:newRes(data.nextFile,settings.defaultCommission,"confirmada")})}><Plus size={14}/>Nueva reserva</Btn>}/>
+    {filtered.length===0?<EmptyState icon={CalendarDays} title="Sin reservas" sub="Creá tu primera reserva." action={<Btn onClick={()=>setModal({isNew:true,data:newRes(getNextFile(),settings.defaultCommission,"confirmada")})}><Plus size={14}/>Nueva reserva</Btn>}/>
       :<Card style={{padding:0}}><table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
         <thead><tr style={{background:"#F8FAFC",borderBottom:"1px solid #E2E8F0"}}>{["File","Destino","Pasajeros","Salida","Estado","Venta","Cobrado","Saldo","Acciones"].map(h=>(<th key={h} style={{padding:"10px 12px",textAlign:"left",fontWeight:700,fontSize:11,color:"#64748B",textTransform:"uppercase"}}>{h}</th>))}</tr></thead>
         <tbody>{filtered.map(r=>{const rec=paidSum(r.paymentsReceived);const pend=(r.salePrice||0)-rec;const t=terr(r);return(<tr key={r.id} style={{borderBottom:"1px solid #F1F5F9"}} onMouseEnter={e=>e.currentTarget.style.background="#F8FAFC"} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
@@ -860,7 +865,7 @@ function ReservationsPage({data,update}){
             {t.length===1&&<button title={`Voucher: ${t[0].description||t[0].type}`} onClick={()=>printVoucherTerrestre(r,settings,providers)} style={{...S.ghostBtn,color:"#059669",borderColor:"#A7F3D0"}}><Hotel size={13}/></button>}
             {t.length>1&&t.map((s,i)=>(<button key={s.id} title={`Voucher ${i+1}: ${s.description||s.type}`} onClick={()=>printVoucherTerrestre(r,settings,providers,i)} style={{...S.ghostBtn,color:"#059669",borderColor:"#A7F3D0"}}><Hotel size={13}/>{i+1}</button>))}
             <button title="Recibo" onClick={()=>printReceipt(r,settings,providers)} style={S.ghostBtn}><Printer size={13}/></button>
-            <button title="Eliminar" onClick={()=>{if(window.confirm("¿Eliminar esta reserva?"))update(d=>({...d,reservations:d.reservations.filter(x=>x.id!==r.id)}))}} style={{...S.ghostBtn,color:"#EF4444",borderColor:"#FCA5A5"}}><Trash2 size={13}/></button>
+            <button title="Eliminar" onClick={()=>{if(window.confirm("¿Mover esta reserva a eliminados?"))update(d=>({...d,reservations:d.reservations.filter(x=>x.id!==r.id),trash:[...( d.trash||[]),{...r,deletedAt:today()}]}))}} style={{...S.ghostBtn,color:"#EF4444",borderColor:"#FCA5A5"}}><Trash2 size={13}/></button>
           </div></td>
         </tr>);})}</tbody>
       </table></Card>}
@@ -1268,12 +1273,16 @@ function QuotationsPage({data, update}){
     [reservations, search]
   );
 
+  const getNextFileQ = () => {
+    const maxFile = data.reservations.reduce((max,x)=>Math.max(max,Number(x.fileNumber)||0),0);
+    return String(maxFile+1).padStart(5,"0");
+  };
   const saveQuotation = r => {
     update(d=>{
       const isNew=d.reservations.findIndex(x=>x.id===r.id)<0;
       const updated=isNew?[...d.reservations,r]:d.reservations.map(x=>x.id===r.id?r:x);
-      const nextFile=isNew?d.nextFile+1:d.nextFile;
-      return{...d,reservations:updated,nextFile};
+      const maxFile=updated.reduce((max,x)=>Math.max(max,Number(x.fileNumber)||0),0);
+      return{...d,reservations:updated,nextFile:maxFile+1};
     });
     setModal(null);
   };
@@ -1284,8 +1293,9 @@ function QuotationsPage({data, update}){
   };
 
   const deleteQuotation = (id) => {
-    if(!window.confirm("¿Eliminar esta cotización?")) return;
-    update(d=>({...d,reservations:d.reservations.filter(x=>x.id!==id)}));
+    if(!window.confirm("¿Mover esta cotización a eliminados?")) return;
+    const item = data.reservations.find(x=>x.id===id);
+    update(d=>({...d,reservations:d.reservations.filter(x=>x.id!==id),trash:[...(d.trash||[]),{...item,deletedAt:today()}]}));
   };
 
   return(
@@ -1295,7 +1305,7 @@ function QuotationsPage({data, update}){
           <h1 style={{margin:0,fontSize:22,fontWeight:800,color:"#0F172A"}}>Cotizaciones</h1>
           <p style={{margin:"4px 0 0",fontSize:13,color:"#64748B"}}>{quotations.length} cotizaciones pendientes</p>
         </div>
-        <Btn onClick={()=>setModal({isNew:true,data:newRes(data.nextFile,settings.defaultCommission,"cotizacion")})}>
+        <Btn onClick={()=>setModal({isNew:true,data:newRes(getNextFileQ(),settings.defaultCommission,"cotizacion")})}>
           <Plus size={14}/>Nueva cotización
         </Btn>
       </div>
@@ -1312,7 +1322,7 @@ function QuotationsPage({data, update}){
       {quotations.length===0
         ? <EmptyState icon={ClipboardList} title="Sin cotizaciones"
             sub="Creá una nueva cotización para un cliente."
-            action={<Btn onClick={()=>setModal({isNew:true,data:newRes(data.nextFile,settings.defaultCommission,"cotizacion")})}><Plus size={14}/>Nueva cotización</Btn>}/>
+            action={<Btn onClick={()=>setModal({isNew:true,data:newRes(getNextFileQ(),settings.defaultCommission,"cotizacion")})}><Plus size={14}/>Nueva cotización</Btn>}/>
         : <Card style={{padding:0}}>
             <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
               <thead>
@@ -1433,6 +1443,89 @@ function PrintQuotationModal({res, settings, onClose}){
 }
 
 
+
+// ── TRASH PAGE ────────────────────────────────────
+function TrashPage({data, update}){
+  const {settings} = data;
+  const trash = data.trash||[];
+  const cur = settings.currency||'ARS';
+
+  const restore = (item) => {
+    if(!window.confirm(`¿Restaurar "${item.destination||'Sin destino'}" (#${item.fileNumber})?`)) return;
+    const {deletedAt, ...restored} = item;
+    update(d=>({
+      ...d,
+      reservations:[...d.reservations, restored],
+      trash:(d.trash||[]).filter(x=>x.id!==item.id)
+    }));
+  };
+
+  const deletePermanently = (id) => {
+    if(!window.confirm("¿Eliminar definitivamente? Esta acción no se puede deshacer.")) return;
+    update(d=>({...d, trash:(d.trash||[]).filter(x=>x.id!==id)}));
+  };
+
+  const emptyTrash = () => {
+    if(!window.confirm("¿Vaciar la papelera? Se eliminarán todos los registros definitivamente.")) return;
+    update(d=>({...d, trash:[]}));
+  };
+
+  return(
+    <div style={{padding:28,overflowY:"auto",flex:1}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}>
+        <div>
+          <h1 style={{margin:0,fontSize:22,fontWeight:800,color:"#0F172A"}}>Eliminados</h1>
+          <p style={{margin:"4px 0 0",fontSize:13,color:"#64748B"}}>{trash.length} elementos en la papelera</p>
+        </div>
+        {trash.length>0&&<Btn variant="secondary" style={{color:"#EF4444",borderColor:"#FCA5A5"}} onClick={emptyTrash}>
+          <Trash2 size={14}/>Vaciar papelera
+        </Btn>}
+      </div>
+
+      {trash.length===0
+        ? <EmptyState icon={Trash2} title="Papelera vacía" sub="Los elementos eliminados aparecerán acá."/>
+        : <Card style={{padding:0}}>
+            <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
+              <thead>
+                <tr style={{background:"#F8FAFC",borderBottom:"1px solid #E2E8F0"}}>
+                  {["File","Tipo","Destino","Pasajeros","Eliminado el","Acciones"].map(h=>(
+                    <th key={h} style={{padding:"10px 12px",textAlign:"left",fontWeight:700,fontSize:11,color:"#64748B",textTransform:"uppercase"}}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {trash.map(item=>(
+                  <tr key={item.id} style={{borderBottom:"1px solid #F1F5F9",opacity:.8}}
+                    onMouseEnter={e=>e.currentTarget.style.background="#FFF1F2"}
+                    onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+                    <td style={{padding:"10px 12px",fontWeight:700,color:"#94A3B8"}}>#{item.fileNumber}</td>
+                    <td style={{padding:"10px 12px"}}><Badge status={item.status}/></td>
+                    <td style={{padding:"10px 12px",fontWeight:500}}>{item.destination||"—"}</td>
+                    <td style={{padding:"10px 12px",color:"#64748B",fontSize:12}}>
+                      {item.passengers?.map(p=>p.name).filter(Boolean).join(", ")||"—"}
+                    </td>
+                    <td style={{padding:"10px 12px",color:"#64748B"}}>{fmtDate(item.deletedAt)}</td>
+                    <td style={{padding:"10px 12px"}}>
+                      <div style={{display:"flex",gap:4}}>
+                        <Btn variant="secondary" size="sm" onClick={()=>restore(item)}>
+                          <Check size={13}/>Restaurar
+                        </Btn>
+                        <button onClick={()=>deletePermanently(item.id)}
+                          style={{...S.ghostBtn,color:"#EF4444",borderColor:"#FCA5A5"}}>
+                          <Trash2 size={13}/>Eliminar
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </Card>
+      }
+    </div>
+  );
+}
+
 // ── APP ROOT ──────────────────────────────────────
 export default function App(){
   const [db,setDb]=useState(null);
@@ -1440,5 +1533,5 @@ export default function App(){
   useEffect(()=>{loadDB().then(setDb);},[]);
   const update=useCallback(fn=>{setDb(prev=>{const next=typeof fn==="function"?fn(prev):{...prev,...fn};saveDB(next);return next;});},[]);
   if(!db)return(<div style={{display:"flex",alignItems:"center",justifyContent:"center",height:"100vh",background:"#0F172A",color:"#94A3B8",fontFamily:"system-ui",gap:10,fontSize:14}}><span style={{width:20,height:20,border:"2px solid #3B82F6",borderTopColor:"transparent",borderRadius:"50%",display:"inline-block",animation:"spin 1s linear infinite"}}/> Cargando TravelManager… <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style></div>);
-  return(<div style={{display:"flex",height:"100vh",fontFamily:"'Segoe UI',system-ui,sans-serif",background:"#F1F5F9",overflow:"hidden"}}><Sidebar section={section} setSection={setSection} settings={db.settings}/><main style={{flex:1,overflow:"hidden",display:"flex",flexDirection:"column"}}>{section==="dashboard"&&<Dashboard data={db}/>}{section==="quotations"&&<QuotationsPage data={db} update={update}/>}{section==="reservations"&&<ReservationsPage data={db} update={update}/>}{section==="clients"&&<ClientsPage data={db} update={update}/>}{section==="providers"&&<ProvidersPage data={db} update={update}/>}{section==="commissions"&&<CommissionsPage data={db}/>}{section==="reports"&&<ReportsPage data={db}/>}{section==="settings"&&<SettingsPage data={db} update={update}/>}</main></div>);
+  return(<div style={{display:"flex",height:"100vh",fontFamily:"'Segoe UI',system-ui,sans-serif",background:"#F1F5F9",overflow:"hidden"}}><Sidebar section={section} setSection={setSection} settings={db.settings}/><main style={{flex:1,overflow:"hidden",display:"flex",flexDirection:"column"}}>{section==="dashboard"&&<Dashboard data={db}/>}{section==="quotations"&&<QuotationsPage data={db} update={update}/>}{section==="reservations"&&<ReservationsPage data={db} update={update}/>}{section==="clients"&&<ClientsPage data={db} update={update}/>}{section==="providers"&&<ProvidersPage data={db} update={update}/>}{section==="commissions"&&<CommissionsPage data={db}/>}{section==="reports"&&<ReportsPage data={db}/>}{section==="settings"&&<SettingsPage data={db} update={update}/>}{section==="trash"&&<TrashPage data={db} update={update}/>}</main></div>);
 }
