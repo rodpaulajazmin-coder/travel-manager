@@ -841,8 +841,10 @@ function ReservationsPage({data,update}){
     const all = [...(data.reservations||[]), ...(data.trash||[])];
     const maxFile = all.reduce((max,x)=>{
       const n = parseInt((x.fileNumber||"0").replace(/^0+/,""),10)||0;
+      console.log("fileNumber:", x.fileNumber, "parsed:", n);
       return Math.max(max,n);
     },0);
+    console.log("maxFile:", maxFile, "nextFile:", maxFile+1);
     return String(maxFile+1).padStart(5,"0");
   };
   const saveRes=r=>{update(d=>{const isNew=d.reservations.findIndex(x=>x.id===r.id)<0;const updated=isNew?[...d.reservations,r]:d.reservations.map(x=>x.id===r.id?r:x);const maxFile=updated.reduce((max,x)=>{const n=parseInt((x.fileNumber||"0").replace(/^0+/,""),10)||0;return Math.max(max,n);},0);return{...d,reservations:updated,nextFile:maxFile+1};});setModal(null);};
