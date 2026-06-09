@@ -722,7 +722,7 @@ function ServiceFields({s,arrUpd}){
 }
 
 function ReservationModal({initial,providers,settings,onSave,onClose}){
-  const [r,setR]=useState(initial||newRes(1,settings.defaultCommission));
+  const [r,setR]=useState(initial);
   const [tab,setTab]=useState("general");
   const cur=settings.currency||'ARS';
   const upd=(k,v)=>setR(p=>({...p,[k]:v}));
@@ -841,10 +841,8 @@ function ReservationsPage({data,update}){
     const all = [...(data.reservations||[]), ...(data.trash||[])];
     const maxFile = all.reduce((max,x)=>{
       const n = parseInt((x.fileNumber||"0").replace(/^0+/,""),10)||0;
-      console.log("fileNumber:", x.fileNumber, "parsed:", n);
       return Math.max(max,n);
     },0);
-    console.log("maxFile:", maxFile, "nextFile:", maxFile+1);
     return String(maxFile+1).padStart(5,"0");
   };
   const saveRes=r=>{update(d=>{const isNew=d.reservations.findIndex(x=>x.id===r.id)<0;const updated=isNew?[...d.reservations,r]:d.reservations.map(x=>x.id===r.id?r:x);const maxFile=updated.reduce((max,x)=>{const n=parseInt((x.fileNumber||"0").replace(/^0+/,""),10)||0;return Math.max(max,n);},0);return{...d,reservations:updated,nextFile:maxFile+1};});setModal(null);};
@@ -879,7 +877,7 @@ function ReservationsPage({data,update}){
           </div></td>
         </tr>);})}</tbody>
       </table></Card>}
-    {modal&&<ReservationModal initial={modal.isNew?null:modal.data} providers={providers} settings={settings} onSave={saveRes} onClose={()=>setModal(null)}/>}
+    {modal&&<ReservationModal initial={modal.data} providers={providers} settings={settings} onSave={saveRes} onClose={()=>setModal(null)}/>}
     {viewModal&&(<Modal title={`File #${viewModal.fileNumber} — ${viewModal.destination||"Sin destino"}`} onClose={()=>setViewModal(null)} width={640} footer={<><Btn variant="secondary" onClick={()=>{setViewModal(null);setModal({isNew:false,data:viewModal});}}>Editar</Btn><Btn variant="secondary" onClick={()=>printVoucherAereo(viewModal,settings,providers)}><Plane size={13}/>V. Aéreo</Btn><Btn variant="secondary" onClick={()=>printVoucherTerrestre(viewModal,settings,providers)}><Hotel size={13}/>V. Terrestre</Btn><Btn onClick={()=>printReceipt(viewModal,settings,providers)}><Printer size={13}/>Recibo</Btn></>}>
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:16}}>{[{l:"Estado",v:<Badge status={viewModal.status}/>},{l:"Destino",v:viewModal.destination||"—"},{l:"Salida",v:fmtDate(viewModal.departureDate)},{l:"Regreso",v:fmtDate(viewModal.returnDate)},{l:"Precio venta",v:fmt$(viewModal.salePrice,cur)},{l:"Saldo",v:fmt$((viewModal.salePrice||0)-paidSum(viewModal.paymentsReceived),cur)}].map(x=>(<div key={x.l}><div style={S.label}>{x.l}</div><div style={{fontSize:14,fontWeight:500}}>{x.v}</div></div>))}</div>
       <Divider label="Pasajeros"/>
@@ -1381,7 +1379,7 @@ function QuotationsPage({data, update}){
 
       {modal&&(
         <ReservationModal
-          initial={modal.isNew?null:modal.data}
+          initial={modal.data}
           providers={providers}
           settings={settings}
           onSave={saveQuotation}
