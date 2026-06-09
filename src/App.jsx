@@ -838,10 +838,14 @@ function ReservationsPage({data,update}){
   const cur=settings.currency||'ARS';
   const filtered=useMemo(()=>reservations.filter(r=>{const q=search.toLowerCase();const mQ=!q||(r.destination||"").toLowerCase().includes(q)||String(r.fileNumber).includes(q)||r.passengers.some(p=>p.name.toLowerCase().includes(q));return mQ&&r.status!=="cotizacion"&&(filter==="all"||r.status===filter);}).sort((a,b)=>b.createdAt?.localeCompare(a.createdAt||"")||0),[reservations,search,filter]);
   const getNextFile = () => {
-    const maxFile = data.reservations.reduce((max,x)=>Math.max(max,Number(x.fileNumber)||0),0);
+    const all = [...(data.reservations||[]), ...(data.trash||[])];
+    const maxFile = all.reduce((max,x)=>{
+      const n = parseInt((x.fileNumber||"0").replace(/^0+/,""),10)||0;
+      return Math.max(max,n);
+    },0);
     return String(maxFile+1).padStart(5,"0");
   };
-  const saveRes=r=>{update(d=>{const isNew=d.reservations.findIndex(x=>x.id===r.id)<0;const updated=isNew?[...d.reservations,r]:d.reservations.map(x=>x.id===r.id?r:x);const maxFile=updated.reduce((max,x)=>Math.max(max,Number(x.fileNumber)||0),0);return{...d,reservations:updated,nextFile:maxFile+1};});setModal(null);};
+  const saveRes=r=>{update(d=>{const isNew=d.reservations.findIndex(x=>x.id===r.id)<0;const updated=isNew?[...d.reservations,r]:d.reservations.map(x=>x.id===r.id?r:x);const maxFile=updated.reduce((max,x)=>{const n=parseInt((x.fileNumber||"0").replace(/^0+/,""),10)||0;return Math.max(max,n);},0);return{...d,reservations:updated,nextFile:maxFile+1};});setModal(null);};
   const terr=r=>r.services.filter(s=>s.type!=='vuelo');
   return(<div style={{padding:28,overflowY:"auto",flex:1}}>
     <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}>
@@ -1278,7 +1282,11 @@ function QuotationsPage({data, update}){
   );
 
   const getNextFileQ = () => {
-    const maxFile = data.reservations.reduce((max,x)=>Math.max(max,Number(x.fileNumber)||0),0);
+    const all = [...(data.reservations||[]), ...(data.trash||[])];
+    const maxFile = all.reduce((max,x)=>{
+      const n = parseInt((x.fileNumber||"0").replace(/^0+/,""),10)||0;
+      return Math.max(max,n);
+    },0);
     return String(maxFile+1).padStart(5,"0");
   };
   const saveQuotation = r => {
