@@ -404,7 +404,7 @@ function Dashboard({data}){
 // ── RESERVATION MODAL ─────────────────────────────
 const newRes=(fileNum,defComm,status="cotizacion")=>({id:genId(),fileNumber:String(fileNum).padStart(5,"0"),status,destination:"",departureDate:"",returnDate:"",description:"",salePrice:0,commissionPercent:defComm||15,passengers:[],services:[],paymentsReceived:[],notes:"",createdAt:today()});
 const newPass=()=>({id:genId(),name:"",dni:"",email:"",phone:"",birthDate:""});
-const newSvc=()=>({id:genId(),type:"vuelo",description:"",providerId:"",providerFileNumber:"",costPrice:0,salePrice:0,paymentsDue:[],flightType:"",flightNumber:"",airline:"",origin:"",originCode:"",destination:"",destinationCode:"",departureDate:"",departureTime:"",arrivalDate:"",arrivalTime:"",stops:"Directo",duration:"",flightClass:"",baggage:"",terminal:"",checkIn:"",checkOut:"",nights:"",rooms:"1",roomType:"",regimen:"",importantInfo:"",serviceDate:"",serviceTime:""});
+const newSvc=()=>({id:genId(),type:"vuelo",description:"",providerId:"",providerFileNumber:"",liquidationUrl:"",costPrice:0,salePrice:0,paymentsDue:[],flightType:"",flightNumber:"",airline:"",origin:"",originCode:"",destination:"",destinationCode:"",departureDate:"",departureTime:"",arrivalDate:"",arrivalTime:"",stops:"Directo",duration:"",flightClass:"",baggage:"",terminal:"",checkIn:"",checkOut:"",nights:"",rooms:"1",roomType:"",regimen:"",importantInfo:"",serviceDate:"",serviceTime:""});
 const newPay=()=>({id:genId(),date:today(),amount:0,method:"Transferencia",notes:""});
 const newDue=()=>({id:genId(),dueDate:"",amount:0,paid:false,paidDate:null,notes:""});
 
@@ -792,6 +792,10 @@ function ReservationModal({initial,providers,settings,onSave,onClose}){
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:12}}>
           <Sel label="Proveedor" value={s.providerId} onChange={v=>arrUpd("services",s.id,x=>({...x,providerId:v}))} options={providers.map(p=>({v:p.id,l:p.name}))}/>
           <Inp label="File/Localizador proveedor" value={s.providerFileNumber} onChange={v=>arrUpd("services",s.id,x=>({...x,providerFileNumber:v}))} placeholder="N° file del proveedor"/>
+        </div>
+        <div style={{display:"grid",gridTemplateColumns:"1fr auto",gap:8,alignItems:"end",marginBottom:12}}>
+          <Inp label="🔗 Link liquidación del proveedor" value={s.liquidationUrl} onChange={v=>arrUpd("services",s.id,x=>({...x,liquidationUrl:v}))} placeholder="Pegá el link de Google Drive, Dropbox, etc."/>
+          {s.liquidationUrl&&<Field label=" "><a href={s.liquidationUrl} target="_blank" rel="noopener noreferrer" style={{...S.secondaryBtn,textDecoration:"none",whiteSpace:"nowrap"}}><Eye size={13}/>Ver liquidación</a></Field>}
         </div>
         <div style={{background:"#F8FAFC",borderRadius:8,padding:12,marginBottom:10}}>
           <VoucherReader svcId={s.id} svcType={s.type} providers={providers}
