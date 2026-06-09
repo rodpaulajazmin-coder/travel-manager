@@ -736,7 +736,7 @@ function ReservationModal({initial,providers,settings,onSave,onClose}){
     <Tabs tabs={tabs} active={tab} setActive={setTab}/>
     {tab==="general"&&(<div>
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:12,marginBottom:12}}>
-        <Inp label="N° de file" value={r.fileNumber} onChange={v=>upd("fileNumber",v)}/>
+        <Field label="N° de file"><div style={{...S.input,background:"#F8FAFC",color:"#64748B",fontWeight:700,display:"flex",alignItems:"center"}}>{r.fileNumber}</div></Field>
         <Sel label="Estado" value={r.status} onChange={v=>upd("status",v)} options={Object.entries(STATUS).map(([v,s])=>({v,l:s.label}))}/>
         <Inp label="Destino" value={r.destination} onChange={v=>upd("destination",v)} placeholder="Ej: Cancún, México"/>
       </div>
