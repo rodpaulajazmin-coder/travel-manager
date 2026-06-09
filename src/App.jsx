@@ -400,7 +400,7 @@ function Dashboard({data}){
 }
 
 // ── RESERVATION MODAL ─────────────────────────────
-const newRes=(fileNum,defComm)=>({id:genId(),fileNumber:String(fileNum).padStart(5,"0"),status:"cotizacion",destination:"",departureDate:"",returnDate:"",description:"",salePrice:0,commissionPercent:defComm||15,passengers:[],services:[],paymentsReceived:[],notes:"",createdAt:today()});
+const newRes=(fileNum,defComm,status="cotizacion")=>({id:genId(),fileNumber:String(fileNum).padStart(5,"0"),status,destination:"",departureDate:"",returnDate:"",description:"",salePrice:0,commissionPercent:defComm||15,passengers:[],services:[],paymentsReceived:[],notes:"",createdAt:today()});
 const newPass=()=>({id:genId(),name:"",dni:"",email:"",phone:"",birthDate:""});
 const newSvc=()=>({id:genId(),type:"vuelo",description:"",providerId:"",providerFileNumber:"",costPrice:0,salePrice:0,paymentsDue:[],flightType:"",flightNumber:"",airline:"",origin:"",originCode:"",destination:"",destinationCode:"",departureDate:"",departureTime:"",arrivalDate:"",arrivalTime:"",stops:"Directo",duration:"",flightClass:"",baggage:"",terminal:"",checkIn:"",checkOut:"",nights:"",rooms:"1",roomType:"",regimen:"",importantInfo:"",serviceDate:"",serviceTime:""});
 const newPay=()=>({id:genId(),date:today(),amount:0,method:"Transferencia",notes:""});
@@ -832,15 +832,15 @@ function ReservationsPage({data,update}){
   const [viewModal,setViewModal]=useState(null);
   const cur=settings.currency||'ARS';
   const filtered=useMemo(()=>reservations.filter(r=>{const q=search.toLowerCase();const mQ=!q||(r.destination||"").toLowerCase().includes(q)||String(r.fileNumber).includes(q)||r.passengers.some(p=>p.name.toLowerCase().includes(q));return mQ&&r.status!=="cotizacion"&&(filter==="all"||r.status===filter);}).sort((a,b)=>b.createdAt?.localeCompare(a.createdAt||"")||0),[reservations,search,filter]);
-  const saveRes=r=>{update(d=>{const idx=d.reservations.findIndex(x=>x.id===r.id);const updated=idx>=0?d.reservations.map(x=>x.id===r.id?r:x):[...d.reservations,r];return{...d,reservations:updated,nextFile:Math.max(d.nextFile,Number(r.fileNumber.replace(/^0+/,""))+1)};});setModal(null);};
+  const saveRes=r=>{update(d=>{const isNew=d.reservations.findIndex(x=>x.id===r.id)<0;const updated=isNew?[...d.reservations,r]:d.reservations.map(x=>x.id===r.id?r:x);const nextFile=isNew?d.nextFile+1:d.nextFile;return{...d,reservations:updated,nextFile};});setModal(null);};
   const terr=r=>r.services.filter(s=>s.type!=='vuelo');
   return(<div style={{padding:28,overflowY:"auto",flex:1}}>
     <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}>
       <div><h1 style={{margin:0,fontSize:22,fontWeight:800,color:"#0F172A"}}>Reservas</h1><p style={{margin:"4px 0 0",fontSize:13,color:"#64748B"}}>{filtered.length} reservas</p></div>
-      <div style={{display:"flex",gap:8}}><Btn variant="success" onClick={()=>exportReservations(reservations,settings)}><Download size={14}/>Excel</Btn><Btn onClick={()=>setModal({isNew:true,data:newRes(data.nextFile,settings.defaultCommission)})}><Plus size={14}/>Nueva reserva</Btn></div>
+      <div style={{display:"flex",gap:8}}><Btn variant="success" onClick={()=>exportReservations(reservations,settings)}><Download size={14}/>Excel</Btn><Btn onClick={()=>setModal({isNew:true,data:newRes(data.nextFile,settings.defaultCommission,"confirmada")})}><Plus size={14}/>Nueva reserva</Btn></div>
     </div>
     <Card style={{marginBottom:16}}><div style={{display:"flex",gap:10}}><div style={{flex:1,position:"relative"}}><Search size={14} style={{position:"absolute",left:10,top:"50%",transform:"translateY(-50%)",color:"#94A3B8"}}/><input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Buscar por file, destino o pasajero…" style={{...S.input,paddingLeft:32}}/></div><select value={filter} onChange={e=>setFilter(e.target.value)} style={{...S.input,width:"auto",appearance:"auto"}}><option value="all">Todos los estados</option>{Object.entries(STATUS).filter(([v])=>v!=="cotizacion").map(([v,s])=><option key={v} value={v}>{s.label}</option>)}</select></div></Card>
-    {filtered.length===0?<EmptyState icon={CalendarDays} title="Sin reservas" sub="Creá tu primera reserva." action={<Btn onClick={()=>setModal({isNew:true,data:newRes(data.nextFile,settings.defaultCommission)})}><Plus size={14}/>Nueva reserva</Btn>}/>
+    {filtered.length===0?<EmptyState icon={CalendarDays} title="Sin reservas" sub="Creá tu primera reserva." action={<Btn onClick={()=>setModal({isNew:true,data:newRes(data.nextFile,settings.defaultCommission,"confirmada")})}><Plus size={14}/>Nueva reserva</Btn>}/>
       :<Card style={{padding:0}}><table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
         <thead><tr style={{background:"#F8FAFC",borderBottom:"1px solid #E2E8F0"}}>{["File","Destino","Pasajeros","Salida","Estado","Venta","Cobrado","Saldo","Acciones"].map(h=>(<th key={h} style={{padding:"10px 12px",textAlign:"left",fontWeight:700,fontSize:11,color:"#64748B",textTransform:"uppercase"}}>{h}</th>))}</tr></thead>
         <tbody>{filtered.map(r=>{const rec=paidSum(r.paymentsReceived);const pend=(r.salePrice||0)-rec;const t=terr(r);return(<tr key={r.id} style={{borderBottom:"1px solid #F1F5F9"}} onMouseEnter={e=>e.currentTarget.style.background="#F8FAFC"} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
@@ -1270,9 +1270,10 @@ function QuotationsPage({data, update}){
 
   const saveQuotation = r => {
     update(d=>{
-      const idx=d.reservations.findIndex(x=>x.id===r.id);
-      const updated=idx>=0?d.reservations.map(x=>x.id===r.id?r:x):[...d.reservations,r];
-      return{...d,reservations:updated,nextFile:Math.max(d.nextFile,Number(r.fileNumber.replace(/^0+/,""))+1)};
+      const isNew=d.reservations.findIndex(x=>x.id===r.id)<0;
+      const updated=isNew?[...d.reservations,r]:d.reservations.map(x=>x.id===r.id?r:x);
+      const nextFile=isNew?d.nextFile+1:d.nextFile;
+      return{...d,reservations:updated,nextFile};
     });
     setModal(null);
   };
@@ -1294,7 +1295,7 @@ function QuotationsPage({data, update}){
           <h1 style={{margin:0,fontSize:22,fontWeight:800,color:"#0F172A"}}>Cotizaciones</h1>
           <p style={{margin:"4px 0 0",fontSize:13,color:"#64748B"}}>{quotations.length} cotizaciones pendientes</p>
         </div>
-        <Btn onClick={()=>setModal({isNew:true,data:newRes(data.nextFile,settings.defaultCommission)})}>
+        <Btn onClick={()=>setModal({isNew:true,data:newRes(data.nextFile,settings.defaultCommission,"cotizacion")})}>
           <Plus size={14}/>Nueva cotización
         </Btn>
       </div>
@@ -1311,7 +1312,7 @@ function QuotationsPage({data, update}){
       {quotations.length===0
         ? <EmptyState icon={ClipboardList} title="Sin cotizaciones"
             sub="Creá una nueva cotización para un cliente."
-            action={<Btn onClick={()=>setModal({isNew:true,data:newRes(data.nextFile,settings.defaultCommission)})}><Plus size={14}/>Nueva cotización</Btn>}/>
+            action={<Btn onClick={()=>setModal({isNew:true,data:newRes(data.nextFile,settings.defaultCommission,"cotizacion")})}><Plus size={14}/>Nueva cotización</Btn>}/>
         : <Card style={{padding:0}}>
             <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
               <thead>
