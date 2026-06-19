@@ -726,12 +726,27 @@ function ReservationModal({initial,providers,settings,onSave,onClose}){
   const [tab,setTab]=useState("general");
   const cur=settings.currency||'ARS';
   const upd=(k,v)=>setR(p=>({...p,[k]:v}));
-  const arrUpd=(k,id,fn)=>setR(p=>({...p,[k]:p[k].map(x=>x.id===id?fn(x):x)}));
-  const arrDel=(k,id)=>setR(p=>({...p,[k]:p[k].filter(x=>x.id!==id)}));
+  const arrUpd=(k,id,fn)=>setR(p=>{
+    const updated={...p,[k]:p[k].map(x=>x.id===id?fn(x):x)};
+    if(k==="services"){
+      const total=sum(updated.services.map(s=>s.salePrice||0));
+      if(total>0) updated.salePrice=total;
+    }
+    return updated;
+  });
+  const arrDel=(k,id)=>setR(p=>{
+    const updated={...p,[k]:p[k].filter(x=>x.id!==id)};
+    if(k==="services"){
+      const total=sum(updated.services.map(s=>s.salePrice||0));
+      if(total>0) updated.salePrice=total;
+    }
+    return updated;
+  });
   const arrAdd=(k,v)=>setR(p=>({...p,[k]:[...p[k],v]}));
   const received=paidSum(r.paymentsReceived);
   const pending=(r.salePrice||0)-received;
   const totalCost=sum(r.services.map(s=>s.costPrice||0));
+  const totalSaleServices=sum(r.services.map(s=>s.salePrice||0));
   const commission=(r.salePrice||0)-totalCost;
   const tabs=[{id:"general",label:"✈ General"},{id:"passengers",label:`👥 Pasajeros (${r.passengers.length})`},{id:"services",label:`🛎 Servicios (${r.services.length})`},{id:"payments",label:`💳 Cobros (${r.paymentsReceived.length})`}];
   return(<Modal title={`${initial?"Editar":"Nueva"} Reserva — File #${r.fileNumber}`} onClose={onClose} width={840} footer={<><Btn variant="secondary" onClick={onClose}>Cancelar</Btn><Btn onClick={()=>onSave(r)}>Guardar reserva</Btn></>}>
@@ -753,7 +768,26 @@ function ReservationModal({initial,providers,settings,onSave,onClose}){
       <Txta label="Descripción" value={r.description} onChange={v=>upd("description",v)} placeholder="Descripción general..." style={{marginBottom:12}}/>
       <Divider label="Resumen financiero"/>
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:12,marginBottom:12}}>
-        <Field label={`Precio de venta (${cur})`}><input type="number" value={r.salePrice||""} onChange={e=>upd("salePrice",+e.target.value)} style={S.input} placeholder="0.00"/></Field>
+        <Field label={`Precio de venta (${cur})`}>
+          <div style={{position:"relative"}}>
+            <input type="number"
+              value={r.salePrice||""}
+              onChange={e=>upd("salePrice",+e.target.value)}
+              style={{...S.input,paddingRight:32}}
+              placeholder="0.00"/>
+            {totalSaleServices>0&&totalSaleServices!==(r.salePrice||0)&&(
+              <button onClick={()=>upd("salePrice",totalSaleServices)}
+                title="Usar suma de servicios"
+                style={{position:"absolute",right:6,top:"50%",transform:"translateY(-50%)",background:"#EFF6FF",border:"1px solid #BFDBFE",borderRadius:6,cursor:"pointer",fontSize:10,color:"#2563EB",padding:"2px 5px",fontWeight:700}}>
+                ↺
+              </button>
+            )}
+          </div>
+          {totalSaleServices>0&&<div style={{fontSize:10,color:"#64748B",marginTop:3}}>
+            Suma servicios: <strong style={{color:totalSaleServices===(r.salePrice||0)?"#059669":"#2563EB"}}>{fmt$(totalSaleServices,cur)}</strong>
+            {totalSaleServices!==(r.salePrice||0)&&<span style={{color:"#D97706"}}> ← diferencia</span>}
+          </div>}
+        </Field>
         <Field label="% Comisión"><input type="number" value={r.commissionPercent||""} onChange={e=>upd("commissionPercent",+e.target.value)} style={S.input} placeholder="15"/></Field>
         <Field label="Costo total"><div style={{...S.input,background:"#F8FAFC",color:"#64748B",display:"flex",alignItems:"center"}}>{fmt$(totalCost,cur)}</div></Field>
       </div>
