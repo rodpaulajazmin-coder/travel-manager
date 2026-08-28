@@ -1224,10 +1224,6 @@ function printQuotation(res, settings, depositPct, validDays, policies, serviceD
   const balanceAmt = (res.salePrice||0) - depositAmt;
   const validDate = validDays ? (() => { const d=new Date(); d.setDate(d.getDate()+validDays); return d.toLocaleDateString('es-AR'); })() : '';
 
-  const depositAmt = Math.round((res.salePrice||0) * (depositPct/100) * 100) / 100;
-  const balanceAmt = (res.salePrice||0) - depositAmt;
-  const validDate = validDays ? (() => { const d=new Date(); d.setDate(d.getDate()+validDays); return d.toLocaleDateString('es-AR'); })() : '';
-
   // Servicios comunes (vuelos + traslados + otros, sin hoteles)
   const costoComun = sum(res.services.filter(s=>s.type!=='hotel').map(s=>s.salePrice||0));
 
