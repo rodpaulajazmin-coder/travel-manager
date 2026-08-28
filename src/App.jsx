@@ -72,6 +72,7 @@ async function loadDB(){
         paymentsDue: s.paymentsDue ? (Array.isArray(s.paymentsDue) ? s.paymentsDue : Object.values(s.paymentsDue)).filter(Boolean) : [],
       })) : [],
       paymentsReceived: r.paymentsReceived ? (Array.isArray(r.paymentsReceived) ? r.paymentsReceived : Object.values(r.paymentsReceived)).filter(Boolean) : [],
+      hotelOptions: r.hotelOptions ? (Array.isArray(r.hotelOptions) ? r.hotelOptions : Object.values(r.hotelOptions)).filter(Boolean) : [],
     })) : [];
     return {
       ...INIT,
@@ -402,7 +403,7 @@ function Dashboard({data}){
 }
 
 // ── RESERVATION MODAL ─────────────────────────────
-const newRes=(fileNum,defComm,status="cotizacion")=>({id:genId(),fileNumber:String(fileNum).padStart(5,"0"),status,destination:"",departureDate:"",returnDate:"",description:"",salePrice:0,commissionPercent:defComm||15,passengers:[],services:[],paymentsReceived:[],notes:"",createdAt:today()});
+const newRes=(fileNum,defComm,status="cotizacion")=>({id:genId(),fileNumber:String(fileNum).padStart(5,"0"),status,destination:"",departureDate:"",returnDate:"",description:"",salePrice:0,commissionPercent:defComm||15,passengers:[],services:[],paymentsReceived:[],notes:"",createdAt:today(),hotelOptions:[]});
 const newPass=()=>({id:genId(),name:"",dni:"",email:"",phone:"",birthDate:""});
 const newSvc=()=>({id:genId(),type:"vuelo",description:"",providerId:"",providerFileNumber:"",liquidationUrl:"",costPrice:0,salePrice:0,paymentsDue:[],flightType:"",flightNumber:"",airline:"",origin:"",originCode:"",destination:"",destinationCode:"",departureDate:"",departureTime:"",arrivalDate:"",arrivalTime:"",stops:"Directo",duration:"",flightClass:"",baggage:"",terminal:"",checkIn:"",checkOut:"",nights:"",rooms:"1",roomType:"",regimen:"",importantInfo:"",serviceDate:"",serviceTime:""});
 const newPay=()=>({id:genId(),date:today(),amount:0,method:"Transferencia",notes:""});
@@ -748,7 +749,7 @@ function ReservationModal({initial,providers,settings,onSave,onClose}){
   const totalCost=sum(r.services.map(s=>s.costPrice||0));
   const totalSaleServices=sum(r.services.map(s=>s.salePrice||0));
   const commission=(r.salePrice||0)-totalCost;
-  const tabs=[{id:"general",label:"✈ General"},{id:"passengers",label:`👥 Pasajeros (${r.passengers.length})`},{id:"services",label:`🛎 Servicios (${r.services.length})`},{id:"payments",label:`💳 Cobros (${r.paymentsReceived.length})`}];
+  const tabs=[{id:"general",label:"✈ General"},{id:"passengers",label:`👥 Pasajeros (${r.passengers.length})`},{id:"services",label:`🛎 Servicios (${r.services.length})`},{id:"hotelOptions",label:`🏨 Opciones hotel (${(r.hotelOptions||[]).length})`},{id:"payments",label:`💳 Cobros (${r.paymentsReceived.length})`}];
   return(<Modal title={`${initial?"Editar":"Nueva"} Reserva — File #${r.fileNumber}`} onClose={onClose} width={840} footer={<><Btn variant="secondary" onClick={onClose}>Cancelar</Btn><Btn onClick={()=>onSave(r)}>Guardar reserva</Btn></>}>
     <Tabs tabs={tabs} active={tab} setActive={setTab}/>
     {tab==="general"&&(<div>
@@ -848,6 +849,33 @@ function ReservationModal({initial,providers,settings,onSave,onClose}){
           </div>))}
         </div>
       </div>);})}
+    </div>)}
+    {tab==="hotelOptions"&&(<div>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
+        <span style={{fontSize:13,color:"#64748B"}}>Opciones de hotel para la cotización. Los vuelos y traslados se comparten entre todas las opciones.</span>
+        <Btn size="sm" onClick={()=>setR(p=>({...p,hotelOptions:[...(p.hotelOptions||[]),{id:genId(),name:"",roomType:"",regimen:"",nights:"",price:0,notes:""}]}))}>
+          <Plus size={14}/>Agregar opción
+        </Btn>
+      </div>
+      {(r.hotelOptions||[]).length===0&&<EmptyState icon={Hotel} title="Sin opciones de hotel" sub="Agregá opciones para comparar en la cotización."/>}
+      {(r.hotelOptions||[]).map((opt,i)=>(
+        <div key={opt.id} style={{border:"1px solid #E2E8F0",borderRadius:10,padding:14,marginBottom:12,background:"#FAFAFA"}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
+            <span style={{fontSize:13,fontWeight:700,color:"#6366F1"}}>Opción {i+1}</span>
+            <button onClick={()=>setR(p=>({...p,hotelOptions:(p.hotelOptions||[]).filter(x=>x.id!==opt.id)}))} style={{...S.ghostBtn,color:"#EF4444",borderColor:"#FCA5A5"}}><Trash2 size={13}/>Eliminar</button>
+          </div>
+          <div style={{display:"grid",gridTemplateColumns:"2fr 1fr",gap:10,marginBottom:10}}>
+            <Inp label="Nombre del hotel" value={opt.name} onChange={v=>setR(p=>({...p,hotelOptions:(p.hotelOptions||[]).map(x=>x.id===opt.id?{...x,name:v}:x)}))} placeholder="Ej: Hotel Ibis Madrid"/>
+            <Field label={`Precio total opción (${cur})`}><input type="number" value={opt.price||""} onChange={e=>setR(p=>({...p,hotelOptions:(p.hotelOptions||[]).map(x=>x.id===opt.id?{...x,price:+e.target.value}:x)}))} style={S.input} placeholder="0.00"/></Field>
+          </div>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:10,marginBottom:10}}>
+            <Inp label="Tipo de habitación" value={opt.roomType} onChange={v=>setR(p=>({...p,hotelOptions:(p.hotelOptions||[]).map(x=>x.id===opt.id?{...x,roomType:v}:x)}))} placeholder="Doble Superior"/>
+            <Field label="Régimen"><select value={opt.regimen||""} onChange={e=>setR(p=>({...p,hotelOptions:(p.hotelOptions||[]).map(x=>x.id===opt.id?{...x,regimen:e.target.value}:x)}))} style={{...S.input,appearance:"auto"}}><option value="">—</option>{REGIMENES.map(r=><option key={r} value={r}>{r}</option>)}</select></Field>
+            <Inp label="Noches" value={opt.nights} onChange={v=>setR(p=>({...p,hotelOptions:(p.hotelOptions||[]).map(x=>x.id===opt.id?{...x,nights:v}:x)}))} placeholder="7"/>
+          </div>
+          <Txta label="Notas (incluye, destacado, etc.)" value={opt.notes} onChange={v=>setR(p=>({...p,hotelOptions:(p.hotelOptions||[]).map(x=>x.id===opt.id?{...x,notes:v}:x)}))} rows={2} placeholder="Incluye desayuno, vista al mar, etc."/>
+        </div>
+      ))}
     </div>)}
     {tab==="payments"&&(<div>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}><span style={{fontSize:13,color:"#64748B"}}>Pagos recibidos del cliente.</span><Btn size="sm" onClick={()=>arrAdd("paymentsReceived",newPay())}><Plus size={14}/>Registrar pago</Btn></div>
@@ -1196,6 +1224,63 @@ function printQuotation(res, settings, depositPct, validDays, policies, serviceD
   const balanceAmt = (res.salePrice||0) - depositAmt;
   const validDate = validDays ? (() => { const d=new Date(); d.setDate(d.getDate()+validDays); return d.toLocaleDateString('es-AR'); })() : '';
 
+  const depositAmt = Math.round((res.salePrice||0) * (depositPct/100) * 100) / 100;
+  const balanceAmt = (res.salePrice||0) - depositAmt;
+  const validDate = validDays ? (() => { const d=new Date(); d.setDate(d.getDate()+validDays); return d.toLocaleDateString('es-AR'); })() : '';
+
+  // Servicios comunes (vuelos + traslados + otros, sin hoteles)
+  const costoComun = sum(res.services.filter(s=>s.type!=='hotel').map(s=>s.salePrice||0));
+
+  // Opciones de hotel
+  const hotelOptions = res.hotelOptions||[];
+  const hotelOptionsBlock = hotelOptions.length>0 ? `
+    <div style="margin-bottom:0;">
+      <table style="width:100%;border-collapse:collapse;font-size:11px;">
+        <thead>
+          <tr>
+            <th style="padding:8px 10px;text-align:left;background:#f5f5f3;border:1px solid #e2e2e2;color:#555;font-weight:700;font-size:10px;text-transform:uppercase;letter-spacing:.5px;">Detalle</th>
+            ${hotelOptions.map((opt,i)=>`<th style="padding:8px 10px;text-align:center;background:${color};color:white;border:1px solid ${color};font-weight:700;">Opción ${i+1}</th>`).join('')}
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td style="padding:8px 10px;border:1px solid #e2e2e2;font-weight:600;color:#333;">Hotel</td>
+            ${hotelOptions.map(opt=>`<td style="padding:8px 10px;border:1px solid #e2e2e2;text-align:center;font-weight:600;color:#1a1a1a;">${opt.name||'—'}</td>`).join('')}
+          </tr>
+          <tr style="background:#fafaf8;">
+            <td style="padding:8px 10px;border:1px solid #e2e2e2;color:#555;">Habitación</td>
+            ${hotelOptions.map(opt=>`<td style="padding:8px 10px;border:1px solid #e2e2e2;text-align:center;color:#444;">${opt.roomType||'—'}</td>`).join('')}
+          </tr>
+          <tr>
+            <td style="padding:8px 10px;border:1px solid #e2e2e2;color:#555;">Régimen</td>
+            ${hotelOptions.map(opt=>`<td style="padding:8px 10px;border:1px solid #e2e2e2;text-align:center;color:#444;">${opt.regimen||'—'}</td>`).join('')}
+          </tr>
+          <tr style="background:#fafaf8;">
+            <td style="padding:8px 10px;border:1px solid #e2e2e2;color:#555;">Noches</td>
+            ${hotelOptions.map(opt=>`<td style="padding:8px 10px;border:1px solid #e2e2e2;text-align:center;color:#444;">${opt.nights||'—'}</td>`).join('')}
+          </tr>
+          ${hotelOptions.some(o=>o.notes)?`<tr>
+            <td style="padding:8px 10px;border:1px solid #e2e2e2;color:#555;">Incluye</td>
+            ${hotelOptions.map(opt=>`<td style="padding:8px 10px;border:1px solid #e2e2e2;text-align:center;color:#444;font-size:10px;">${opt.notes||'—'}</td>`).join('')}
+          </tr>`:''}
+          <tr>
+            <td style="padding:10px;border:1px solid #e2e2e2;font-weight:700;color:#333;background:#f0f0ee;">Precio total ${priceBasis||'por persona'}</td>
+            ${hotelOptions.map(opt=>{
+              const total = opt.price||0;
+              const dep = Math.round(total*(depositPct/100)*100)/100;
+              const bal = total-dep;
+              return `<td style="padding:10px;border:1px solid ${color};text-align:center;background:${color}15;">
+                <div style="font-size:15px;font-weight:700;color:${color};">${cur==='USD'?'US$':cur==='EUR'?'€':'$'} ${total.toLocaleString('es-AR',{minimumFractionDigits:2})}</div>
+                <div style="font-size:9px;color:#666;margin-top:4px;">Seña (${depositPct}%): ${cur==='USD'?'US$':cur==='EUR'?'€':'$'} ${dep.toLocaleString('es-AR',{minimumFractionDigits:2})}</div>
+                <div style="font-size:9px;color:#666;">Saldo 45 días antes: ${cur==='USD'?'US$':cur==='EUR'?'€':'$'} ${bal.toLocaleString('es-AR',{minimumFractionDigits:2})}</div>
+              </td>`;
+            }).join('')}
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  ` : '';
+
   const html = `<!DOCTYPE html><html><head><meta charset="utf-8">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <title>Cotización #${res.fileNumber}</title>
@@ -1244,7 +1329,7 @@ ul{padding-left:15px;font-size:11px;color:#666;line-height:2;}
     ${vuelosBlock}
   </div>`:''}
 
-  ${hoteles.length>0?`
+  ${hoteles.length>0&&hotelOptions.length===0?`
   <div class="sec">
     <div class="sec-title"><div class="sec-title-bar"></div><div class="sec-title-text">Alojamiento seleccionado</div></div>
     ${hotelesBlock}
@@ -1262,6 +1347,11 @@ ul{padding-left:15px;font-size:11px;color:#666;line-height:2;}
     <div style="font-size:11px;color:#555;line-height:1.8;">${serviceDesc}</div>
   </div>`:''}
 
+  ${hotelOptions.length>0?`
+  <div class="sec">
+    <div class="sec-title"><div class="sec-title-bar"></div><div class="sec-title-text">Opciones de alojamiento y precios</div></div>
+    ${hotelOptionsBlock}
+  </div>`:`
   <div class="sec">
     <div class="price-box">
       <div style="font-size:11px;opacity:.8;">Precio ${priceBasis||'por persona'}</div>
@@ -1278,7 +1368,7 @@ ul{padding-left:15px;font-size:11px;color:#666;line-height:2;}
         <span style="font-weight:700;">${cur==='USD'?'US$':cur==='EUR'?'€':'$'} ${balanceAmt.toLocaleString('es-AR',{minimumFractionDigits:2})}</span>
       </div>
     </div>
-  </div>
+  </div>`}
 
   ${policies?`
   <div class="sec">
